@@ -307,6 +307,17 @@ button{
 .badge.used{background:rgba(78,159,118,.18); color:#8FD1AC;}
 .badge.expired{background:rgba(217,83,79,.18); color:#F5B7B5;}
 
+.level-badge{
+  font-size:11px;
+  padding:3px 10px;
+  border-radius:20px;
+  font-weight:700;
+  white-space:nowrap;
+}
+.level-silver{background:rgba(176,196,222,.18); color:#C7D3E0;}
+.level-gold{background:rgba(255,215,0,.18); color:#FFD86B;}
+.level-vip{background:rgba(192,38,211,.22); color:#F0ABFC;}
+
 .empty-state{
   text-align:center;
   color:var(--text-dim);
