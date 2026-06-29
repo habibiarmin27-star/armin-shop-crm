@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="fa">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>مشتری‌ها | CRM مغازه</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="app-bar">
+  <h1>مشتری‌ها</h1>
+  <div style="display:flex; gap:14px; align-items:center;">
+    <a href="scan.html" class="back">📷 اسکن وچر</a>
+    <button data-logout class="btn block-link">خروج</button>
+  </div>
+</div>
+
+<div class="container">
+  <input type="text" id="searchInput" class="search-box" placeholder="جستجو بر اساس اسم یا شماره...">
+
+  <div id="listArea">
+    <div class="loading">در حال بارگذاری...</div>
+  </div>
+</div>
+
+<button class="fab" id="openAddBtn">+</button>
+
+<!-- Add customer sheet -->
+<div class="overlay" id="addOverlay">
+  <div class="sheet">
+    <h2>مشتری جدید</h2>
+    <div id="addError" class="error-msg"></div>
+    <form id="addForm">
+      <label>اسم مشتری *</label>
+      <input type="text" id="c_name" class="field-fa" required>
+
+      <label>شماره تماس</label>
+      <input type="tel" id="c_phone" placeholder="+971...">
+
+      <label>ایمیل</label>
+      <input type="email" id="c_email" placeholder="customer@email.com">
+
+      <label>تاریخ تولد</label>
+      <input type="date" id="c_birthday">
+
+      <button type="submit" class="btn">ذخیره مشتری</button>
+      <button type="button" class="btn secondary" id="cancelAddBtn" style="margin-top:10px;">انصراف</button>
+    </form>
+  </div>
+</div>
+
+<script type="module" src="auth-guard.js"></script>
+<script type="module" src="dashboard.js"></script>
+</body>
+</html>
