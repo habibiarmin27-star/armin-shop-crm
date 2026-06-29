@@ -196,8 +196,12 @@ document.getElementById("purchaseForm").addEventListener("submit", async (e) => 
 
     const newTiers = getNewlyTriggeredTiers(newProgress, oldTriggered);
 
+    // If a single purchase jumps across multiple tiers at once, only issue
+    // ONE voucher — for the highest tier reached. (All crossed tiers still
+    // get marked as triggered so they don't fire again later.)
     let newVoucherCount = 0;
-    for (const tier of newTiers) {
+    if (newTiers.length > 0) {
+      const highestTier = newTiers[newTiers.length - 1];
       const code = generateVoucherCode();
       const expires = new Date();
       expires.setDate(expires.getDate() + VOUCHER_VALID_DAYS);
@@ -206,15 +210,15 @@ document.getElementById("purchaseForm").addEventListener("submit", async (e) => 
         customerId,
         customerName: customerData.name || "",
         customerEmail: customerData.email || "",
-        discount: tier.discount,
+        discount: highestTier.discount,
         code,
         status: "active",
         issuedAt: serverTimestamp(),
         expiresAt: Timestamp.fromDate(expires),
       });
-      newVoucherCount++;
-      // Email sending hook — wired up once EmailJS is configured (see js/email.js)
-      notifyVoucherIssued(customerData, tier.discount, code, expires);
+      newVoucherCount = 1;
+      // Email sending hook — wired up once EmailJS is configured
+      notifyVoucherIssued(customerData, highestTier.discount, code, expires);
     }
 
     // 3. update customer doc
