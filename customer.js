@@ -2,6 +2,7 @@
 import { db } from "./firebase-init.js";
 import { requireAuth } from "./auth-guard.js";
 import { getNextTier, getNewlyTriggeredTiers, generateVoucherCode, VOUCHER_VALID_DAYS } from "./voucher-config.js";
+import { BRANCHES } from "./branches-config.js";
 import {
   doc, getDoc, updateDoc, collection, addDoc, getDocs, query, orderBy,
   serverTimestamp, Timestamp, where
@@ -14,6 +15,10 @@ let customerData = null;
 if (!customerId) {
   window.location.href = "dashboard.html";
 }
+
+// Fill the branch dropdown from the shared config
+const branchSelect = document.getElementById("p_branch");
+branchSelect.innerHTML = BRANCHES.map((b) => `<option value="${b}">${b}</option>`).join("");
 
 requireAuth(() => {
   loadAll();
@@ -60,6 +65,7 @@ function renderInfo() {
       </div>
     </div>
     ${progressHtml}
+    <div id="branchInfoLine" class="muted" style="margin-top:10px;"></div>
     <div style="margin-top:14px; font-size:13px; color:var(--text-dim); line-height:2;">
       📞 ${escapeHtml(customerData.phone || "—")}<br>
       ✉️ ${escapeHtml(customerData.email || "—")}<br>
@@ -72,17 +78,33 @@ async function loadPurchases() {
   const listEl = document.getElementById("purchaseList");
   const q = query(collection(db, "customers", customerId, "purchases"), orderBy("createdAt", "desc"));
   const snap = await getDocs(q);
+
   if (snap.empty) {
     listEl.innerHTML = `<div class="empty-state">هنوز خریدی ثبت نشده</div>`;
+    const branchLine = document.getElementById("branchInfoLine");
+    if (branchLine) branchLine.textContent = "";
     return;
   }
-  listEl.innerHTML = snap.docs.map((d) => {
-    const p = d.data();
+
+  const purchases = snap.docs.map((d) => d.data());
+
+  listEl.innerHTML = purchases.map((p) => {
+    const branchLabel = p.branch ? ` · ${escapeHtml(p.branch)}` : "";
     return `<div class="purchase-row">
-              <span class="date">${p.date || "—"}</span>
+              <span class="date">${p.date || "—"}${branchLabel}</span>
               <span class="amt">${p.amount} درهم</span>
             </div>`;
   }).join("");
+
+  // Most-visited branch, computed from purchase history
+  const counts = {};
+  purchases.forEach((p) => {
+    if (p.branch) counts[p.branch] = (counts[p.branch] || 0) + 1;
+  });
+  const topBranch = Object.keys(counts).sort((a, b) => counts[b] - counts[a])[0];
+  document.getElementById("branchInfoLine").textContent = topBranch
+    ? `📍 شعبه‌ی پرتکرار: ${topBranch}`
+    : "";
 }
 
 async function loadVouchers() {
@@ -155,6 +177,7 @@ document.getElementById("purchaseForm").addEventListener("submit", async (e) => 
   successBox.classList.remove("show");
 
   const amount = parseFloat(document.getElementById("p_amount").value);
+  const branch = document.getElementById("p_branch").value;
   const date = document.getElementById("p_date").value || new Date().toISOString().slice(0, 10);
 
   if (!amount || amount <= 0) return;
@@ -162,7 +185,7 @@ document.getElementById("purchaseForm").addEventListener("submit", async (e) => 
   try {
     // 1. record the purchase
     await addDoc(collection(db, "customers", customerId, "purchases"), {
-      amount, date, createdAt: serverTimestamp(),
+      amount, date, branch, createdAt: serverTimestamp(),
     });
 
     // 2. compute new totals + check tiers
