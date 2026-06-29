@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="fa">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>اسکن وچر | CRM مغازه</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="app-bar">
+  <a href="dashboard.html" class="back">‹ بازگشت</a>
+  <h1>اسکن وچر</h1>
+  <span></span>
+</div>
+
+<div class="container">
+  <div class="card">
+    <label>کد وچر را اسکن یا وارد کن</label>
+    <input type="text" id="codeInput" placeholder="VC..." autofocus>
+    <button class="btn" id="checkBtn">بررسی کد</button>
+    <p class="muted" style="margin-top:10px;">
+      اگه بارکدخوان فروشگاهی (USB/بلوتوث) داری، فقط کافیه روی این کادر لمس کنی و بارکد رو اسکن کنی — خودش تایپ میشه.
+    </p>
+  </div>
+
+  <div id="resultArea"></div>
+</div>
+
+<script type="module" src="auth-guard.js"></script>
+<script type="module" src="scan.js"></script>
+</body>
+</html>
