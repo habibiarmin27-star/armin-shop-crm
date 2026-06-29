@@ -2,6 +2,7 @@
 import { db } from "./firebase-init.js";
 import { requireAuth } from "./auth-guard.js";
 import { getNextTier } from "./voucher-config.js";
+import { getCustomerLevel, getThreeMonthTotal } from "./levels-config.js";
 import {
   collection, getDocs, addDoc, serverTimestamp, query, orderBy
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -52,11 +53,14 @@ function renderList(customers) {
       ? `<span class="voucher-chip">🎫 ${c.activeVoucherCount} وچر فعال</span>`
       : "";
 
+    const level = getCustomerLevel(getThreeMonthTotal(c.monthlySpend));
+    const levelChip = level ? `<span class="level-badge ${level.badgeClass}">${level.name}</span>` : "";
+
     return `
       <a class="customer-item" href="customer.html?id=${c.id}">
         <div class="row">
           <span class="name">${escapeHtml(c.name || "بدون اسم")}</span>
-          ${voucherChip}
+          <span style="display:flex; gap:6px;">${levelChip}${voucherChip}</span>
         </div>
         <div class="phone">${escapeHtml(c.phone || "—")}</div>
         ${progressHtml}
