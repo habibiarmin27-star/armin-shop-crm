@@ -3,9 +3,10 @@ import { db } from "./firebase-init.js";
 import { requireAuth } from "./auth-guard.js";
 import { getNextTier, getNewlyTriggeredTiers, generateVoucherCode, VOUCHER_VALID_DAYS } from "./voucher-config.js";
 import { BRANCHES } from "./branches-config.js";
+import { getCustomerLevel, getThreeMonthTotal, getMonthKeyFromDateStr } from "./levels-config.js";
 import {
   doc, getDoc, updateDoc, collection, addDoc, getDocs, query, orderBy,
-  serverTimestamp, Timestamp, where
+  serverTimestamp, Timestamp, where, increment
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const params = new URLSearchParams(window.location.search);
@@ -44,6 +45,12 @@ async function loadCustomer() {
 function renderInfo() {
   document.getElementById("custNameTitle").textContent = customerData.name || "مشتری";
 
+  const threeMonthTotal = getThreeMonthTotal(customerData.monthlySpend);
+  const level = getCustomerLevel(threeMonthTotal);
+  document.getElementById("levelBadgeSlot").innerHTML = level
+    ? `<span class="level-badge ${level.badgeClass}">${level.name}</span>`
+    : "";
+
   const progress = customerData.voucherProgress || 0;
   const next = getNextTier(progress);
   let progressHtml = next
@@ -65,6 +72,7 @@ function renderInfo() {
       </div>
     </div>
     ${progressHtml}
+    <div class="muted" style="margin-top:6px;">خرید ۳ ماه اخیر: ${threeMonthTotal} درهم</div>
     <div id="branchInfoLine" class="muted" style="margin-top:10px;"></div>
     <div style="margin-top:14px; font-size:13px; color:var(--text-dim); line-height:2;">
       📞 ${escapeHtml(customerData.phone || "—")}<br>
@@ -223,11 +231,13 @@ document.getElementById("purchaseForm").addEventListener("submit", async (e) => 
 
     // 3. update customer doc
     const updatedTriggered = [...oldTriggered, ...newTiers.map((t) => t.threshold)];
+    const monthKey = getMonthKeyFromDateStr(date);
     await updateDoc(doc(db, "customers", customerId), {
       voucherProgress: newProgress,
       totalPurchases: newTotal,
       triggeredTiers: updatedTriggered,
       activeVoucherCount: (customerData.activeVoucherCount || 0) + newVoucherCount,
+      [`monthlySpend.${monthKey}`]: increment(amount),
     });
 
     document.getElementById("purchaseForm").reset();
