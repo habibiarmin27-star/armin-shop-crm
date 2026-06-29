@@ -1,0 +1,11 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Only signed-in staff (accounts you create manually in Firebase Auth)
+    // can read or write anything in this database. There is no public
+    // sign-up — customers never get accounts here.
+    match /{document=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}
