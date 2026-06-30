@@ -53,7 +53,7 @@ async function checkCode() {
         <div style="font-size:15px; margin-bottom:10px;">
           مشتری: <b>${escapeHtml(currentVoucher.customerName || "—")}</b>
         </div>
-        <div style="font-size:22px; font-weight:800; color:var(--gold-light); margin-bottom:14px;">
+        <div style="font-size:22px; font-weight:800; color:var(--accent); margin-bottom:14px;">
           ${currentVoucher.discount} درهم تخفیف
         </div>
         <button class="btn" id="confirmBtn">تایید و اعمال تخفیف</button>
