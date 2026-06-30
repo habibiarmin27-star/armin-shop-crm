@@ -34,7 +34,7 @@ async function loadReminders() {
 
     renderReminders(area, purchases);
   } catch (err) {
-    area.innerHTML = `<div class="empty-state">خطا در بارگذاری یادآوری‌ها</div>`;
+    area.innerHTML = `<div class="empty-state">Failed to load reminders</div>`;
     console.error(err);
   }
 }
@@ -73,20 +73,20 @@ function renderReminders(area, purchases) {
     .filter(Boolean);
 
   area.innerHTML = `
-    <div class="section-title">🎂 تولد امروز</div>
+    <div class="section-title">🎂 Birthdays Today</div>
     <div id="birthdaySection">${birthdayCustomers.length
       ? birthdayCustomers.map(birthdayCardHtml).join("")
-      : `<div class="empty-state">امروز تولد کسی نیست</div>`}</div>
+      : `<div class="empty-state">No birthdays today</div>`}</div>
 
-    <div class="section-title">💛 دلمون تنگ شده (${INACTIVITY_DAYS}+ روز)</div>
+    <div class="section-title">💛 We Miss Them (${INACTIVITY_DAYS}+ days)</div>
     <div>${inactiveCustomers.length
-      ? inactiveCustomers.map((c) => actionCardHtml(c, missYouMessage(c.name || ""), "دلتنگی")).join("")
-      : `<div class="empty-state">فعلاً مشتری غایبی نیست</div>`}</div>
+      ? inactiveCustomers.map((c) => actionCardHtml(c, missYouMessage(c.name || ""), "Inactive")).join("")
+      : `<div class="empty-state">No inactive customers right now</div>`}</div>
 
-    <div class="section-title">🙏 تشکر بابت خرید امروز</div>
+    <div class="section-title">🙏 Thank You for Today's Purchase</div>
     <div>${thankYouCustomers.length
-      ? thankYouCustomers.map((c) => actionCardHtml(c, thankYouMessage(c.name || ""), "تشکر")).join("")
-      : `<div class="empty-state">هنوز خریدی امروز ثبت نشده</div>`}</div>
+      ? thankYouCustomers.map((c) => actionCardHtml(c, thankYouMessage(c.name || ""), "Thank you")).join("")
+      : `<div class="empty-state">No purchases recorded today yet</div>`}</div>
   `;
 
   // wire up birthday voucher buttons (need async voucher creation before linking)
@@ -110,16 +110,16 @@ function actionCardHtml(c, message, subLabel) {
     ? `https://wa.me/${toWhatsAppNumber(c.phone)}?text=${encodeURIComponent(message)}`
     : null;
   const mailLink = c.email
-    ? `mailto:${c.email}?subject=${encodeURIComponent("از طرف فروشگاه")}&body=${encodeURIComponent(message)}`
+    ? `mailto:${c.email}?subject=${encodeURIComponent("From the shop")}&body=${encodeURIComponent(message)}`
     : null;
 
   return `
     <div class="reminder-card">
-      <div class="r-top"><span class="r-name">${escapeHtml(c.name || "بدون اسم")}</span></div>
-      <div class="r-sub">${subLabel} · <a href="customer.html?id=${c.id}" style="color:var(--accent);">مشاهده پروفایل</a></div>
+      <div class="r-top"><span class="r-name">${escapeHtml(c.name || "Unnamed")}</span></div>
+      <div class="r-sub">${subLabel} · <a href="customer.html?id=${c.id}" style="color:var(--accent);">View profile</a></div>
       <div class="reminder-actions">
-        ${waLink ? `<a class="wa-btn" href="${waLink}">واتساپ</a>` : `<span class="wa-btn" style="opacity:.4;">بدون شماره</span>`}
-        ${mailLink ? `<a class="mail-btn" href="${mailLink}">ایمیل</a>` : `<span class="mail-btn" style="opacity:.4;">بدون ایمیل</span>`}
+        ${waLink ? `<a class="wa-btn" href="${waLink}">WhatsApp</a>` : `<span class="wa-btn" style="opacity:.4;">No phone</span>`}
+        ${mailLink ? `<a class="mail-btn" href="${mailLink}">Email</a>` : `<span class="mail-btn" style="opacity:.4;">No email</span>`}
       </div>
     </div>`;
 }
@@ -130,15 +130,15 @@ function birthdayCardHtml(c) {
 
   return `
     <div class="reminder-card">
-      <div class="r-top"><span class="r-name">${escapeHtml(c.name || "بدون اسم")}</span></div>
+      <div class="r-top"><span class="r-name">${escapeHtml(c.name || "Unnamed")}</span></div>
       <div class="r-sub">
-        تولد · <a href="customer.html?id=${c.id}" style="color:var(--accent);">مشاهده پروفایل</a>
-        ${alreadySent ? " · کد تخفیف امسال قبلاً صادر شده" : ""}
+        Birthday · <a href="customer.html?id=${c.id}" style="color:var(--accent);">View profile</a>
+        ${alreadySent ? " · Voucher already sent this year" : ""}
       </div>
       <div class="reminder-actions">
         <button class="wa-btn" style="width:100%; border:1px solid rgba(62,142,92,.3); cursor:pointer;"
           data-birthday-id="${c.id}" ${alreadySent ? "disabled" : ""}>
-          ${alreadySent ? "ارسال شده ✓" : "ساخت کد + ارسال پیام"}
+          ${alreadySent ? "Sent ✓" : "Generate Code & Send Message"}
         </button>
       </div>
     </div>`;
@@ -151,13 +151,13 @@ async function handleBirthdayClick(e, btn) {
   if (!c) return;
 
   btn.disabled = true;
-  btn.textContent = "در حال ساخت کد...";
+  btn.textContent = "Generating code...";
 
   try {
     const code = generateVoucherCode();
     const expires = new Date();
     expires.setDate(expires.getDate() + BIRTHDAY_VOUCHER_VALID_DAYS);
-    const expiryLabel = expires.toLocaleDateString("fa-IR");
+    const expiryLabel = expires.toLocaleDateString("en-GB");
 
     await addDoc(collection(db, "vouchers"), {
       customerId,
@@ -181,14 +181,14 @@ async function handleBirthdayClick(e, btn) {
     if (c.phone) {
       window.location.href = `https://wa.me/${toWhatsAppNumber(c.phone)}?text=${encodeURIComponent(message)}`;
     } else if (c.email) {
-      window.location.href = `mailto:${c.email}?subject=${encodeURIComponent("تولدتون مبارک 🎉")}&body=${encodeURIComponent(message)}`;
+      window.location.href = `mailto:${c.email}?subject=${encodeURIComponent("Happy Birthday 🎉")}&body=${encodeURIComponent(message)}`;
     } else {
-      alert(`کد ساخته شد: ${code} — ولی این مشتری شماره یا ایمیل ندارد.`);
+      alert(`Code generated: ${code} — but this customer has no phone or email on file.`);
       loadReminders();
     }
   } catch (err) {
     btn.disabled = false;
-    btn.textContent = "خطا — دوباره تلاش کن";
+    btn.textContent = "Error — try again";
     console.error(err);
   }
 }

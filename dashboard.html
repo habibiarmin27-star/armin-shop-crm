@@ -1,25 +1,25 @@
 <!DOCTYPE html>
-<html dir="rtl" lang="fa">
+<html dir="ltr" lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-<title>مشتری‌ها | CRM مغازه</title>
+<title>Customers | Shop CRM</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
 <div class="app-bar">
-  <h1>مشتری‌ها</h1>
+  <h1>Customers</h1>
   <button id="hamburgerBtn" class="hamburger">☰</button>
 </div>
 
 <div class="container">
   <div class="dash-stats" id="statsArea"></div>
 
-  <input type="text" id="searchInput" class="search-box" placeholder="جستجو بر اساس اسم یا شماره...">
+  <input type="text" id="searchInput" class="search-box" placeholder="Search by name or phone...">
 
   <div id="listArea">
-    <div class="loading">در حال بارگذاری...</div>
+    <div class="loading">Loading...</div>
   </div>
 </div>
 
@@ -28,23 +28,23 @@
 <!-- Add customer sheet -->
 <div class="overlay" id="addOverlay">
   <div class="sheet">
-    <h2>مشتری جدید</h2>
+    <h2>New Customer</h2>
     <div id="addError" class="error-msg"></div>
     <form id="addForm">
-      <label>اسم مشتری *</label>
-      <input type="text" id="c_name" class="field-fa" required>
+      <label>Customer Name *</label>
+      <input type="text" id="c_name" required>
 
-      <label>شماره تماس</label>
+      <label>Phone Number</label>
       <input type="tel" id="c_phone" placeholder="+971...">
 
-      <label>ایمیل</label>
+      <label>Email</label>
       <input type="email" id="c_email" placeholder="customer@email.com">
 
-      <label>تاریخ تولد</label>
+      <label>Birthday</label>
       <input type="date" id="c_birthday">
 
-      <button type="submit" class="btn">ذخیره مشتری</button>
-      <button type="button" class="btn secondary" id="cancelAddBtn" style="margin-top:10px;">انصراف</button>
+      <button type="submit" class="btn">Save Customer</button>
+      <button type="button" class="btn secondary" id="cancelAddBtn" style="margin-top:10px;">Cancel</button>
     </form>
   </div>
 </div>

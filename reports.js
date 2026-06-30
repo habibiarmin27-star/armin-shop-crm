@@ -29,7 +29,7 @@ async function loadReport() {
 
     renderReport(area, purchases, customers);
   } catch (err) {
-    area.innerHTML = `<div class="empty-state">خطا در بارگذاری گزارش</div>`;
+    area.innerHTML = `<div class="empty-state">Failed to load the report</div>`;
     console.error(err);
   }
 }
@@ -38,7 +38,7 @@ function renderReport(area, purchases, customers) {
   // --- Branch performance ---
   const branchStats = {};
   purchases.forEach((p) => {
-    const b = p.branch || "نامشخص";
+    const b = p.branch || "Unknown";
     if (!branchStats[b]) branchStats[b] = { total: 0, count: 0 };
     branchStats[b].total += p.amount || 0;
     branchStats[b].count += 1;
@@ -47,14 +47,14 @@ function renderReport(area, purchases, customers) {
     .sort((a, b) => b[1].total - a[1].total)
     .map(([name, s]) => `
       <div class="purchase-row">
-        <span class="date">${escapeHtml(name)} · ${s.count} خرید</span>
-        <span class="amt">${s.total.toLocaleString("fa-IR")} درهم</span>
-      </div>`).join("") || `<div class="empty-state">هنوز خریدی ثبت نشده</div>`;
+        <span class="date">${escapeHtml(name)} · ${s.count} purchases</span>
+        <span class="amt">${s.total.toLocaleString("en-US")} AED</span>
+      </div>`).join("") || `<div class="empty-state">No purchases recorded yet</div>`;
 
   // --- Daily sales (last 14 days that had activity) ---
   const dailyStats = {};
   purchases.forEach((p) => {
-    const d = p.date || "نامشخص";
+    const d = p.date || "Unknown";
     dailyStats[d] = (dailyStats[d] || 0) + (p.amount || 0);
   });
   const dailyRows = Object.entries(dailyStats)
@@ -63,8 +63,8 @@ function renderReport(area, purchases, customers) {
     .map(([date, total]) => `
       <div class="purchase-row">
         <span class="date">${date}</span>
-        <span class="amt">${total.toLocaleString("fa-IR")} درهم</span>
-      </div>`).join("") || `<div class="empty-state">هنوز خریدی ثبت نشده</div>`;
+        <span class="amt">${total.toLocaleString("en-US")} AED</span>
+      </div>`).join("") || `<div class="empty-state">No purchases recorded yet</div>`;
 
   // --- Top spenders (lifetime total) ---
   const topSpenders = [...customers]
@@ -73,10 +73,10 @@ function renderReport(area, purchases, customers) {
     .map((c) => `
       <a class="customer-item" href="customer.html?id=${c.id}">
         <div class="row">
-          <span class="name">${escapeHtml(c.name || "بدون اسم")}</span>
-          <span class="amt">${(c.totalPurchases || 0).toLocaleString("fa-IR")} درهم</span>
+          <span class="name">${escapeHtml(c.name || "Unnamed")}</span>
+          <span class="amt">${(c.totalPurchases || 0).toLocaleString("en-US")} AED</span>
         </div>
-      </a>`).join("") || `<div class="empty-state">مشتری‌ای ثبت نشده</div>`;
+      </a>`).join("") || `<div class="empty-state">No customers yet</div>`;
 
   // --- VIP list (rolling 3-month spend) ---
   const vipCustomers = customers
@@ -87,26 +87,26 @@ function renderReport(area, purchases, customers) {
     .map((c) => `
       <a class="customer-item" href="customer.html?id=${c.id}">
         <div class="row">
-          <span class="name">${escapeHtml(c.name || "بدون اسم")}</span>
+          <span class="name">${escapeHtml(c.name || "Unnamed")}</span>
           <span class="level-badge level-vip">VIP</span>
         </div>
-      </a>`).join("") || `<div class="empty-state">فعلاً مشتری VIP ای نیست</div>`;
+      </a>`).join("") || `<div class="empty-state">No VIP customers yet</div>`;
 
   area.innerHTML = `
-    <div class="section-title">عملکرد شعبه‌ها</div>
+    <div class="section-title">Branch Performance</div>
     <div class="card">${branchRows}</div>
 
-    <div class="section-title">فروش روزانه (۱۴ روز اخیر)</div>
+    <div class="section-title">Daily Sales (last 14 days)</div>
     <div class="card">${dailyRows}</div>
 
-    <div class="section-title">پرخریدترین مشتری‌ها (جمع کل)</div>
+    <div class="section-title">Top Spenders (lifetime)</div>
     <div class="card">${topSpenders}</div>
 
-    <div class="section-title">مشتری‌های VIP</div>
+    <div class="section-title">VIP Customers</div>
     <div class="card">${vipCustomers}</div>
 
     <div class="muted" style="text-align:center; margin-top:10px;">
-      آیتم‌های پرفروش هنوز در دسترس نیست — برای این بخش باید فیلد "نام محصول" به فرم ثبت خرید اضافه شود.
+      Best-selling items aren't available yet — add a "product name" field to the purchase form to enable this section.
     </div>
   `;
 }

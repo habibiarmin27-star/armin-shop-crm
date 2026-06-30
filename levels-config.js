@@ -6,8 +6,8 @@
 // Listed highest threshold first, so the lookup below returns the top level reached.
 export const CUSTOMER_LEVELS = [
   { name: "VIP", threshold: 17000, badgeClass: "level-vip" },
-  { name: "طلا", threshold: 13000, badgeClass: "level-gold" },
-  { name: "نقره", threshold: 5000, badgeClass: "level-silver" },
+  { name: "Gold", threshold: 13000, badgeClass: "level-gold" },
+  { name: "Silver", threshold: 5000, badgeClass: "level-silver" },
 ];
 
 // Returns the level object for a given 3-month spend total, or null if below all thresholds.

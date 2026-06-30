@@ -1,28 +1,28 @@
 <!DOCTYPE html>
-<html dir="rtl" lang="fa">
+<html dir="ltr" lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-<title>ورود | CRM مغازه</title>
+<title>Sign In | Shop CRM</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
 <div class="center-screen">
   <div class="card login-card">
-    <div class="logo">CRM مغازه</div>
-    <div class="sub">ورود کارمندان</div>
+    <div class="logo">Shop CRM</div>
+    <div class="sub">Staff Sign In</div>
 
     <div id="errorBox" class="error-msg"></div>
 
     <form id="loginForm">
-      <label for="email">ایمیل</label>
+      <label for="email">Email</label>
       <input type="email" id="email" placeholder="example@shop.com" required autocomplete="username">
 
-      <label for="password">رمز عبور</label>
+      <label for="password">Password</label>
       <input type="password" id="password" placeholder="••••••••" required autocomplete="current-password">
 
-      <button type="submit" class="btn" id="loginBtn">ورود</button>
+      <button type="submit" class="btn" id="loginBtn">Sign In</button>
     </form>
   </div>
 </div>
@@ -32,7 +32,6 @@
   import { signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
   import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
-  // If already logged in, skip straight to the dashboard
   onAuthStateChanged(auth, (user) => {
     if (user) window.location.href = "dashboard.html";
   });
@@ -44,7 +43,7 @@
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     errorBox.classList.remove("show");
-    loginBtn.textContent = "در حال ورود...";
+    loginBtn.textContent = "Signing in...";
 
     const email = document.getElementById("email").value.trim();
     const password = document.getElementById("password").value;
@@ -53,8 +52,8 @@
       await signInWithEmailAndPassword(auth, email, password);
       window.location.href = "dashboard.html";
     } catch (err) {
-      loginBtn.textContent = "ورود";
-      errorBox.textContent = "ایمیل یا رمز عبور اشتباه است.";
+      loginBtn.textContent = "Sign In";
+      errorBox.textContent = "Incorrect email or password.";
       errorBox.classList.add("show");
     }
   });

@@ -1,7 +1,7 @@
 // nav-menu.js
 // Shared hamburger navigation menu, included on every protected page.
 // Injects a hamburger button's behavior + a slide-in panel with the app's
-// main links. The "گزارش مدیر" link only appears for manager emails.
+// main links. The "Manager Reports" link only appears for manager emails.
 
 import { auth } from "./firebase-init.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
@@ -9,7 +9,7 @@ import { MANAGER_EMAILS } from "./manager-config.js";
 
 function buildPanel(isManager) {
   const reportsLink = isManager
-    ? `<a href="reports.html" class="nav-link">📊 گزارش مدیر</a>`
+    ? `<a href="reports.html" class="nav-link">📊 Manager Reports</a>`
     : "";
 
   const overlay = document.createElement("div");
@@ -18,14 +18,14 @@ function buildPanel(isManager) {
   overlay.innerHTML = `
     <div class="nav-panel">
       <div class="nav-panel-head">
-        <span>منو</span>
+        <span>Menu</span>
         <button id="navCloseBtn" class="nav-close">✕</button>
       </div>
-      <a href="dashboard.html" class="nav-link">🏠 داشبورد</a>
-      <a href="reminders.html" class="nav-link">🔔 یادآوری‌ها</a>
-      <a href="scan.html" class="nav-link">📷 اسکن وچر</a>
+      <a href="dashboard.html" class="nav-link">🏠 Dashboard</a>
+      <a href="reminders.html" class="nav-link">🔔 Reminders</a>
+      <a href="scan.html" class="nav-link">📷 Scan Voucher</a>
       ${reportsLink}
-      <button data-logout class="nav-link nav-logout">🚪 خروج</button>
+      <button data-logout class="nav-link nav-logout">🚪 Sign Out</button>
     </div>
   `;
   document.body.appendChild(overlay);

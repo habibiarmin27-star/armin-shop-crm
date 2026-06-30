@@ -1,4 +1,4 @@
-// js/scan.js
+// scan.js
 import { db } from "./firebase-init.js";
 import { requireAuth } from "./auth-guard.js";
 import {
@@ -21,14 +21,14 @@ async function checkCode() {
   const code = codeInput.value.trim();
   if (!code) return;
 
-  resultArea.innerHTML = `<div class="loading">در حال بررسی...</div>`;
+  resultArea.innerHTML = `<div class="loading">Checking...</div>`;
 
   try {
     const q = query(collection(db, "vouchers"), where("code", "==", code));
     const snap = await getDocs(q);
 
     if (snap.empty) {
-      resultArea.innerHTML = `<div class="error-msg show">این کد پیدا نشد.</div>`;
+      resultArea.innerHTML = `<div class="error-msg show">This code was not found.</div>`;
       return;
     }
 
@@ -40,29 +40,29 @@ async function checkCode() {
     const isExpired = expiresMs && expiresMs < now;
 
     if (currentVoucher.status === "used") {
-      resultArea.innerHTML = `<div class="error-msg show">این وچر قبلاً استفاده شده.</div>`;
+      resultArea.innerHTML = `<div class="error-msg show">This voucher has already been used.</div>`;
       return;
     }
     if (isExpired) {
-      resultArea.innerHTML = `<div class="error-msg show">این وچر منقضی شده است.</div>`;
+      resultArea.innerHTML = `<div class="error-msg show">This voucher has expired.</div>`;
       return;
     }
 
     resultArea.innerHTML = `
       <div class="card">
         <div style="font-size:15px; margin-bottom:10px;">
-          مشتری: <b>${escapeHtml(currentVoucher.customerName || "—")}</b>
+          Customer: <b>${escapeHtml(currentVoucher.customerName || "—")}</b>
         </div>
         <div style="font-size:22px; font-weight:800; color:var(--accent); margin-bottom:14px;">
-          ${currentVoucher.discount} درهم تخفیف
+          ${currentVoucher.discount} AED off
         </div>
-        <button class="btn" id="confirmBtn">تایید و اعمال تخفیف</button>
+        <button class="btn" id="confirmBtn">Confirm & Apply Discount</button>
       </div>`;
 
     document.getElementById("confirmBtn").addEventListener("click", redeemVoucher);
 
   } catch (err) {
-    resultArea.innerHTML = `<div class="error-msg show">خطا در بررسی کد.</div>`;
+    resultArea.innerHTML = `<div class="error-msg show">Error checking the code.</div>`;
     console.error(err);
   }
 }
@@ -84,11 +84,11 @@ async function redeemVoucher() {
       activeVoucherCount: Math.max(0, (custData.activeVoucherCount || 1) - 1),
     });
 
-    resultArea.innerHTML = `<div class="success-msg show">تخفیف اعمال شد ✅</div>`;
+    resultArea.innerHTML = `<div class="success-msg show">Discount applied ✅</div>`;
     codeInput.value = "";
     currentVoucher = null;
   } catch (err) {
-    resultArea.innerHTML += `<div class="error-msg show">خطا در ثبت استفاده از وچر.</div>`;
+    resultArea.innerHTML += `<div class="error-msg show">Failed to mark the voucher as used.</div>`;
     console.error(err);
   }
 }

@@ -21,7 +21,7 @@ async function loadCustomers() {
     allCustomers = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
     renderList(allCustomers);
   } catch (err) {
-    listArea.innerHTML = `<div class="empty-state">خطا در بارگذاری مشتری‌ها</div>`;
+    listArea.innerHTML = `<div class="empty-state">Failed to load customers</div>`;
     console.error(err);
   }
 }
@@ -46,10 +46,10 @@ async function loadStats() {
     }).length;
 
     statsArea.innerHTML = `
-      <div class="dash-stat"><div class="lbl">کل مشتریان</div><div class="num">${totalCustomers}</div></div>
-      <div class="dash-stat"><div class="lbl">فروش این ماه</div><div class="num">${thisMonthSales.toLocaleString("fa-IR")} <span style="font-size:11px;">درهم</span></div></div>
-      <div class="dash-stat"><div class="lbl">وچرهای فعال</div><div class="num">${activeVouchers}</div></div>
-      <div class="dash-stat"><div class="lbl">مشتریان VIP</div><div class="num">${vipCount}</div></div>
+      <div class="dash-stat"><div class="lbl">Total Customers</div><div class="num">${totalCustomers}</div></div>
+      <div class="dash-stat"><div class="lbl">Sales This Month</div><div class="num">${thisMonthSales.toLocaleString("en-US")} <span style="font-size:11px;">AED</span></div></div>
+      <div class="dash-stat"><div class="lbl">Active Vouchers</div><div class="num">${activeVouchers}</div></div>
+      <div class="dash-stat"><div class="lbl">VIP Customers</div><div class="num">${vipCount}</div></div>
     `;
   } catch (err) {
     statsArea.innerHTML = "";
@@ -60,7 +60,7 @@ async function loadStats() {
 function renderList(customers) {
   const listArea = document.getElementById("listArea");
   if (customers.length === 0) {
-    listArea.innerHTML = `<div class="empty-state">هنوز مشتری‌ای ثبت نشده. با دکمه‌ی + شروع کن.</div>`;
+    listArea.innerHTML = `<div class="empty-state">No customers yet. Tap + to add one.</div>`;
     return;
   }
 
@@ -73,14 +73,14 @@ function renderList(customers) {
     return `
       <a class="cust-row" href="customer.html?id=${c.id}">
         <div class="top-line">
-          <span class="name">${escapeHtml(c.name || "بدون اسم")}</span>
+          <span class="name">${escapeHtml(c.name || "Unnamed")}</span>
           ${levelChip}
         </div>
         <div class="sub-line">
           <div class="meta"><span>${escapeHtml(c.phone || "—")}</span><span>${escapeHtml(branch)}</span></div>
           <div class="right-stats">
-            <div class="amt">${threeMonthTotal.toLocaleString("fa-IR")} درهم</div>
-            <div class="amt-lbl">${c.activeVoucherCount > 0 ? `🎫 ${c.activeVoucherCount} وچر` : "۳ ماه اخیر"}</div>
+            <div class="amt">${threeMonthTotal.toLocaleString("en-US")} AED</div>
+            <div class="amt-lbl">${c.activeVoucherCount > 0 ? `🎫 ${c.activeVoucherCount} active` : "last 3 months"}</div>
           </div>
         </div>
       </a>`;
@@ -126,7 +126,7 @@ document.getElementById("addForm").addEventListener("submit", async (e) => {
     loadCustomers();
     loadStats();
   } catch (err) {
-    errorBox.textContent = "ذخیره انجام نشد، دوباره تلاش کن.";
+    errorBox.textContent = "Could not save. Please try again.";
     errorBox.classList.add("show");
     console.error(err);
   }

@@ -1,29 +1,29 @@
 <!DOCTYPE html>
-<html dir="rtl" lang="fa">
+<html dir="ltr" lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-<title>پروفایل مشتری | CRM مغازه</title>
+<title>Customer Profile | Shop CRM</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
 <div class="app-bar">
-  <a href="dashboard.html" class="back">‹ بازگشت</a>
-  <h1 id="custNameTitle">مشتری</h1>
+  <a href="dashboard.html" class="back">‹ Back</a>
+  <h1 id="custNameTitle">Customer</h1>
   <span id="levelBadgeSlot"></span>
 </div>
 
 <div class="container">
 
   <div class="card" id="infoCard">
-    <div class="loading">در حال بارگذاری...</div>
+    <div class="loading">Loading...</div>
   </div>
 
-  <div class="section-title">تاریخچه خرید</div>
+  <div class="section-title">Purchase History</div>
   <div class="card" id="purchaseList"></div>
 
-  <div class="section-title">وچرها</div>
+  <div class="section-title">Vouchers</div>
   <div class="card" id="voucherList"></div>
 
 </div>
@@ -33,21 +33,21 @@
 <!-- Add purchase sheet -->
 <div class="overlay" id="purchaseOverlay">
   <div class="sheet">
-    <h2>ثبت خرید جدید</h2>
+    <h2>Record New Purchase</h2>
     <div id="purchaseError" class="error-msg"></div>
     <div id="purchaseSuccess" class="success-msg"></div>
     <form id="purchaseForm">
-      <label>مبلغ خرید (درهم) *</label>
+      <label>Purchase Amount (AED) *</label>
       <input type="number" id="p_amount" min="1" step="0.01" required>
 
-      <label>شعبه *</label>
+      <label>Branch *</label>
       <select id="p_branch" required></select>
 
-      <label>تاریخ خرید</label>
+      <label>Purchase Date</label>
       <input type="date" id="p_date">
 
-      <button type="submit" class="btn">ثبت خرید</button>
-      <button type="button" class="btn secondary" id="cancelPurchaseBtn" style="margin-top:10px;">انصراف</button>
+      <button type="submit" class="btn">Record Purchase</button>
+      <button type="button" class="btn secondary" id="cancelPurchaseBtn" style="margin-top:10px;">Cancel</button>
     </form>
   </div>
 </div>
