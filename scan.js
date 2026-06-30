@@ -76,14 +76,11 @@ async function redeemVoucher() {
     });
 
     const custRef = doc(db, "customers", currentVoucher.customerId);
-    // Reset the progress counter; other active vouchers (if any) are unaffected.
     const { getDoc } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
     const custSnap = await getDoc(custRef);
     const custData = custSnap.data() || {};
 
     await updateDoc(custRef, {
-      voucherProgress: 0,
-      triggeredTiers: [],
       activeVoucherCount: Math.max(0, (custData.activeVoucherCount || 1) - 1),
     });
 
