@@ -1,20 +1,16 @@
-// js/dashboard.js
+// dashboard.js
 import { db } from "./firebase-init.js";
 import { requireAuth } from "./auth-guard.js";
 import { getCustomerLevel, getThreeMonthTotal } from "./levels-config.js";
-import { MANAGER_EMAILS } from "./manager-config.js";
 import {
-  collection, getDocs, addDoc, serverTimestamp, query, orderBy
+  collection, collectionGroup, getDocs, addDoc, serverTimestamp, query, orderBy
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 let allCustomers = [];
 
-requireAuth((user) => {
-  if (MANAGER_EMAILS.includes(user.email)) {
-    document.getElementById("reportsLinkSlot").innerHTML =
-      `<a href="reports.html" class="back">📊 گزارش مدیر</a>`;
-  }
-  loadCustomers();
+requireAuth(async () => {
+  await loadCustomers();
+  loadStats();
 });
 
 async function loadCustomers() {
@@ -30,6 +26,37 @@ async function loadCustomers() {
   }
 }
 
+async function loadStats() {
+  const statsArea = document.getElementById("statsArea");
+  try {
+    const purchasesSnap = await getDocs(collectionGroup(db, "purchases"));
+    const purchases = purchasesSnap.docs.map((d) => d.data());
+
+    const now = new Date();
+    const thisMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    const thisMonthSales = purchases
+      .filter((p) => (p.date || "").startsWith(thisMonthKey))
+      .reduce((sum, p) => sum + (p.amount || 0), 0);
+
+    const totalCustomers = allCustomers.length;
+    const activeVouchers = allCustomers.reduce((sum, c) => sum + (c.activeVoucherCount || 0), 0);
+    const vipCount = allCustomers.filter((c) => {
+      const level = getCustomerLevel(getThreeMonthTotal(c.monthlySpend));
+      return level && level.name === "VIP";
+    }).length;
+
+    statsArea.innerHTML = `
+      <div class="dash-stat"><div class="lbl">کل مشتریان</div><div class="num">${totalCustomers}</div></div>
+      <div class="dash-stat"><div class="lbl">فروش این ماه</div><div class="num">${thisMonthSales.toLocaleString("fa-IR")} <span style="font-size:11px;">درهم</span></div></div>
+      <div class="dash-stat"><div class="lbl">وچرهای فعال</div><div class="num">${activeVouchers}</div></div>
+      <div class="dash-stat"><div class="lbl">مشتریان VIP</div><div class="num">${vipCount}</div></div>
+    `;
+  } catch (err) {
+    statsArea.innerHTML = "";
+    console.error(err);
+  }
+}
+
 function renderList(customers) {
   const listArea = document.getElementById("listArea");
   if (customers.length === 0) {
@@ -38,20 +65,24 @@ function renderList(customers) {
   }
 
   listArea.innerHTML = customers.map((c) => {
-    const voucherChip = (c.activeVoucherCount > 0)
-      ? `<span class="voucher-chip">🎫 ${c.activeVoucherCount} وچر فعال</span>`
-      : "";
-
     const level = getCustomerLevel(getThreeMonthTotal(c.monthlySpend));
     const levelChip = level ? `<span class="level-badge ${level.badgeClass}">${level.name}</span>` : "";
+    const threeMonthTotal = getThreeMonthTotal(c.monthlySpend);
+    const branch = c.topBranch || "—";
 
     return `
-      <a class="customer-item" href="customer.html?id=${c.id}">
-        <div class="row">
+      <a class="cust-row" href="customer.html?id=${c.id}">
+        <div class="top-line">
           <span class="name">${escapeHtml(c.name || "بدون اسم")}</span>
-          <span style="display:flex; gap:6px;">${levelChip}${voucherChip}</span>
+          ${levelChip}
         </div>
-        <div class="phone">${escapeHtml(c.phone || "—")}</div>
+        <div class="sub-line">
+          <div class="meta"><span>${escapeHtml(c.phone || "—")}</span><span>${escapeHtml(branch)}</span></div>
+          <div class="right-stats">
+            <div class="amt">${threeMonthTotal.toLocaleString("fa-IR")} درهم</div>
+            <div class="amt-lbl">${c.activeVoucherCount > 0 ? `🎫 ${c.activeVoucherCount} وچر` : "۳ ماه اخیر"}</div>
+          </div>
+        </div>
       </a>`;
   }).join("");
 }
@@ -93,6 +124,7 @@ document.getElementById("addForm").addEventListener("submit", async (e) => {
     document.getElementById("addForm").reset();
     addOverlay.classList.remove("show");
     loadCustomers();
+    loadStats();
   } catch (err) {
     errorBox.textContent = "ذخیره انجام نشد، دوباره تلاش کن.";
     errorBox.classList.add("show");
