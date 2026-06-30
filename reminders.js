@@ -118,7 +118,7 @@ function actionCardHtml(c, message, subLabel) {
       <div class="r-top"><span class="r-name">${escapeHtml(c.name || "بدون اسم")}</span></div>
       <div class="r-sub">${subLabel} · <a href="customer.html?id=${c.id}" style="color:var(--accent);">مشاهده پروفایل</a></div>
       <div class="reminder-actions">
-        ${waLink ? `<a class="wa-btn" href="${waLink}" target="_blank">واتساپ</a>` : `<span class="wa-btn" style="opacity:.4;">بدون شماره</span>`}
+        ${waLink ? `<a class="wa-btn" href="${waLink}">واتساپ</a>` : `<span class="wa-btn" style="opacity:.4;">بدون شماره</span>`}
         ${mailLink ? `<a class="mail-btn" href="${mailLink}">ایمیل</a>` : `<span class="mail-btn" style="opacity:.4;">بدون ایمیل</span>`}
       </div>
     </div>`;
