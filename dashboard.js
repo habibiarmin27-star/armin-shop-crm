@@ -1,7 +1,6 @@
 // js/dashboard.js
 import { db } from "./firebase-init.js";
 import { requireAuth } from "./auth-guard.js";
-import { getNextTier } from "./voucher-config.js";
 import { getCustomerLevel, getThreeMonthTotal } from "./levels-config.js";
 import {
   collection, getDocs, addDoc, serverTimestamp, query, orderBy
@@ -34,21 +33,6 @@ function renderList(customers) {
   }
 
   listArea.innerHTML = customers.map((c) => {
-    const progress = c.voucherProgress || 0;
-    const next = getNextTier(progress);
-    let progressHtml = "";
-
-    if (next) {
-      const pct = Math.min(100, Math.round((progress / next.threshold) * 100));
-      progressHtml = `
-        <div class="tier-progress">
-          <div class="label"><span>تا تخفیف بعدی</span><b>${progress} / ${next.threshold} درهم</b></div>
-          <div class="tier-track"><div class="tier-fill" style="width:${pct}%"></div></div>
-        </div>`;
-    } else {
-      progressHtml = `<div class="tier-progress"><div class="label"><span>به بالاترین سطح رسیده ✓</span></div></div>`;
-    }
-
     const voucherChip = (c.activeVoucherCount > 0)
       ? `<span class="voucher-chip">🎫 ${c.activeVoucherCount} وچر فعال</span>`
       : "";
@@ -63,7 +47,6 @@ function renderList(customers) {
           <span style="display:flex; gap:6px;">${levelChip}${voucherChip}</span>
         </div>
         <div class="phone">${escapeHtml(c.phone || "—")}</div>
-        ${progressHtml}
       </a>`;
   }).join("");
 }
@@ -99,8 +82,6 @@ document.getElementById("addForm").addEventListener("submit", async (e) => {
     await addDoc(collection(db, "customers"), {
       name, phone, email, birthday,
       totalPurchases: 0,
-      voucherProgress: 0,
-      triggeredTiers: [],
       activeVoucherCount: 0,
       createdAt: serverTimestamp(),
     });
