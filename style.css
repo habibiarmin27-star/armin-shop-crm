@@ -388,3 +388,58 @@ button{
 }
 
 .muted{color:var(--text-dim); font-size:11.5px;}
+
+/* Hamburger + slide-in nav panel */
+.hamburger{
+  background:none;
+  font-size:22px;
+  color:var(--text);
+  line-height:1;
+  padding:4px 6px;
+}
+.nav-overlay{
+  position:fixed; inset:0; background:rgba(57,43,31,.45);
+  display:none; justify-content:flex-end; z-index:60;
+}
+.nav-overlay.show{display:flex;}
+.nav-panel{
+  background:var(--surface); width:78%; max-width:300px; height:100%;
+  padding:18px 16px; box-shadow:-6px 0 24px rgba(57,43,31,.18);
+}
+.nav-panel-head{
+  display:flex; justify-content:space-between; align-items:center;
+  font-size:13px; font-weight:800; color:var(--text-dim);
+  margin-bottom:18px; padding-bottom:14px; border-bottom:1px solid var(--border);
+}
+.nav-close{ background:none; font-size:18px; color:var(--text-dim); }
+.nav-link{
+  display:block; width:100%; text-align:right; background:none;
+  font-size:14.5px; font-weight:700; color:var(--text);
+  padding:13px 8px; border-radius:var(--radius-sm); margin-bottom:2px;
+  font-family:inherit;
+}
+.nav-link:active{ background:var(--surface-2); }
+.nav-logout{ color:var(--down); margin-top:10px; border-top:1px solid var(--border); padding-top:15px; border-radius:0; }
+
+/* Dashboard top stat cards */
+.dash-stats{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:18px; }
+.dash-stat{
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-sm);
+  padding:13px;
+}
+.dash-stat .lbl{ font-size:10.5px; color:var(--text-dim); font-weight:700; margin-bottom:7px; }
+.dash-stat .num{ font-size:18px; font-weight:800; color:var(--accent); }
+
+/* Table-style customer list row */
+.cust-row{
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+  padding:13px 15px; margin-bottom:9px; display:block;
+}
+.cust-row .top-line{ display:flex; align-items:center; gap:7px; margin-bottom:5px; }
+.cust-row .name{ font-weight:700; font-size:14px; }
+.cust-row .sub-line{ display:flex; justify-content:space-between; align-items:center; }
+.cust-row .meta{ font-size:11px; color:var(--text-dim); display:flex; gap:8px; direction:ltr; justify-content:flex-end; }
+.cust-row .meta span:last-child{ direction:rtl; }
+.cust-row .right-stats{ text-align:left; }
+.cust-row .right-stats .amt{ font-size:12.5px; font-weight:800; color:var(--text); }
+.cust-row .right-stats .amt-lbl{ font-size:9.5px; color:var(--text-dim); }
