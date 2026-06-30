@@ -226,6 +226,7 @@ document.getElementById("purchaseForm").addEventListener("submit", async (e) => 
       [`monthlySpend.${monthKey}`]: increment(amount),
       branchCounts: newBranchCounts,
       topBranch,
+      lastPurchaseDate: date,
     });
 
     document.getElementById("purchaseForm").reset();
