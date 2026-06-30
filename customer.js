@@ -1,7 +1,7 @@
 // js/customer.js
 import { db } from "./firebase-init.js";
 import { requireAuth } from "./auth-guard.js";
-import { getNextTier, getNewlyTriggeredTiers, generateVoucherCode, VOUCHER_VALID_DAYS } from "./voucher-config.js";
+import { getTierForPurchase, generateVoucherCode, VOUCHER_VALID_DAYS } from "./voucher-config.js";
 import { BRANCHES } from "./branches-config.js";
 import { getCustomerLevel, getThreeMonthTotal, getMonthKeyFromDateStr } from "./levels-config.js";
 import {
@@ -51,14 +51,7 @@ function renderInfo() {
     ? `<span class="level-badge ${level.badgeClass}">${level.name}</span>`
     : "";
 
-  const progress = customerData.voucherProgress || 0;
-  const next = getNextTier(progress);
-  let progressHtml = next
-    ? `<div class="tier-progress">
-         <div class="label"><span>تا تخفیف بعدی</span><b>${progress} / ${next.threshold} درهم</b></div>
-         <div class="tier-track"><div class="tier-fill" style="width:${Math.min(100, Math.round(progress / next.threshold * 100))}%"></div></div>
-       </div>`
-    : `<div class="tier-progress"><div class="label"><span>به بالاترین سطح رسیده ✓</span></div></div>`;
+  const progressHtml = `<div class="muted">هر خرید جدا بررسی میشه: ۱۰۰۰+ = ۵۰ درهم، ۱۵۰۰+ = ۸۰ درهم، ۲۰۰۰+ = ۱۵۰ درهم وچر</div>`;
 
   document.getElementById("infoCard").innerHTML = `
     <div class="stat-grid">
@@ -196,20 +189,12 @@ document.getElementById("purchaseForm").addEventListener("submit", async (e) => 
       amount, date, branch, createdAt: serverTimestamp(),
     });
 
-    // 2. compute new totals + check tiers
-    const oldProgress = customerData.voucherProgress || 0;
-    const oldTriggered = customerData.triggeredTiers || [];
-    const newProgress = oldProgress + amount;
+    // 2. check which tier THIS single purchase qualifies for
     const newTotal = (customerData.totalPurchases || 0) + amount;
+    const voucherTier = getTierForPurchase(amount);
 
-    const newTiers = getNewlyTriggeredTiers(newProgress, oldTriggered);
-
-    // If a single purchase jumps across multiple tiers at once, only issue
-    // ONE voucher — for the highest tier reached. (All crossed tiers still
-    // get marked as triggered so they don't fire again later.)
     let newVoucherCount = 0;
-    if (newTiers.length > 0) {
-      const highestTier = newTiers[newTiers.length - 1];
+    if (voucherTier) {
       const code = generateVoucherCode();
       const expires = new Date();
       expires.setDate(expires.getDate() + VOUCHER_VALID_DAYS);
@@ -218,7 +203,7 @@ document.getElementById("purchaseForm").addEventListener("submit", async (e) => 
         customerId,
         customerName: customerData.name || "",
         customerEmail: customerData.email || "",
-        discount: highestTier.discount,
+        discount: voucherTier.discount,
         code,
         status: "active",
         issuedAt: serverTimestamp(),
@@ -226,16 +211,13 @@ document.getElementById("purchaseForm").addEventListener("submit", async (e) => 
       });
       newVoucherCount = 1;
       // Email sending hook — wired up once EmailJS is configured
-      notifyVoucherIssued(customerData, highestTier.discount, code, expires);
+      notifyVoucherIssued(customerData, voucherTier.discount, code, expires);
     }
 
     // 3. update customer doc
-    const updatedTriggered = [...oldTriggered, ...newTiers.map((t) => t.threshold)];
     const monthKey = getMonthKeyFromDateStr(date);
     await updateDoc(doc(db, "customers", customerId), {
-      voucherProgress: newProgress,
       totalPurchases: newTotal,
-      triggeredTiers: updatedTriggered,
       activeVoucherCount: (customerData.activeVoucherCount || 0) + newVoucherCount,
       [`monthlySpend.${monthKey}`]: increment(amount),
     });
