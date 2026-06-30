@@ -216,10 +216,16 @@ document.getElementById("purchaseForm").addEventListener("submit", async (e) => 
 
     // 3. update customer doc
     const monthKey = getMonthKeyFromDateStr(date);
+    const oldBranchCounts = customerData.branchCounts || {};
+    const newBranchCounts = { ...oldBranchCounts, [branch]: (oldBranchCounts[branch] || 0) + 1 };
+    const topBranch = Object.keys(newBranchCounts).sort((a, b) => newBranchCounts[b] - newBranchCounts[a])[0];
+
     await updateDoc(doc(db, "customers", customerId), {
       totalPurchases: newTotal,
       activeVoucherCount: (customerData.activeVoucherCount || 0) + newVoucherCount,
       [`monthlySpend.${monthKey}`]: increment(amount),
+      branchCounts: newBranchCounts,
+      topBranch,
     });
 
     document.getElementById("purchaseForm").reset();
