@@ -22,6 +22,7 @@ function buildPanel(isManager) {
         <button id="navCloseBtn" class="nav-close">✕</button>
       </div>
       <a href="dashboard.html" class="nav-link">🏠 داشبورد</a>
+      <a href="reminders.html" class="nav-link">🔔 یادآوری‌ها</a>
       <a href="scan.html" class="nav-link">📷 اسکن وچر</a>
       ${reportsLink}
       <button data-logout class="nav-link nav-logout">🚪 خروج</button>
