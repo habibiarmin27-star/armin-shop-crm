@@ -95,9 +95,19 @@ function renderReminders(area, purchases) {
   });
 }
 
+function toWhatsAppNumber(phone) {
+  let digits = (phone || "").replace(/[^0-9]/g, "");
+  // Local UAE-style numbers start with 0 (e.g. 050...); wa.me needs the
+  // country code instead (971...).
+  if (digits.startsWith("0")) {
+    digits = "971" + digits.slice(1);
+  }
+  return digits;
+}
+
 function actionCardHtml(c, message, subLabel) {
   const waLink = c.phone
-    ? `https://wa.me/${c.phone.replace(/[^0-9]/g, "")}?text=${encodeURIComponent(message)}`
+    ? `https://wa.me/${toWhatsAppNumber(c.phone)}?text=${encodeURIComponent(message)}`
     : null;
   const mailLink = c.email
     ? `mailto:${c.email}?subject=${encodeURIComponent("از طرف فروشگاه")}&body=${encodeURIComponent(message)}`
@@ -169,7 +179,7 @@ async function handleBirthdayClick(e, btn) {
 
     const message = birthdayMessage(c.name || "", code, expiryLabel);
     if (c.phone) {
-      window.location.href = `https://wa.me/${c.phone.replace(/[^0-9]/g, "")}?text=${encodeURIComponent(message)}`;
+      window.location.href = `https://wa.me/${toWhatsAppNumber(c.phone)}?text=${encodeURIComponent(message)}`;
     } else if (c.email) {
       window.location.href = `mailto:${c.email}?subject=${encodeURIComponent("تولدتون مبارک 🎉")}&body=${encodeURIComponent(message)}`;
     } else {
