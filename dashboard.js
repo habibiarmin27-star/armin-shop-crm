@@ -2,13 +2,18 @@
 import { db } from "./firebase-init.js";
 import { requireAuth } from "./auth-guard.js";
 import { getCustomerLevel, getThreeMonthTotal } from "./levels-config.js";
+import { MANAGER_EMAILS } from "./manager-config.js";
 import {
   collection, getDocs, addDoc, serverTimestamp, query, orderBy
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 let allCustomers = [];
 
-requireAuth(() => {
+requireAuth((user) => {
+  if (MANAGER_EMAILS.includes(user.email)) {
+    document.getElementById("reportsLinkSlot").innerHTML =
+      `<a href="reports.html" class="back">📊 گزارش مدیر</a>`;
+  }
   loadCustomers();
 });
 
