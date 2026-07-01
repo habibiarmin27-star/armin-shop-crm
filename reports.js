@@ -172,7 +172,7 @@ function renderAll(area) {
         <div class="lbl">Sales This Month</div>
         <div class="num">${thisMonthSales.toLocaleString('en-US')} <span style="font-size:11px;color:var(--text-dim)">AED</span></div>
         <div class="trend-line ${salesTrend===null?'neutral':salesTrend>0?'up':'down'}">
-          ${salesTrend===null?'— no prior data':salesTrend>0?`▲ ${salesTrend}% vs last month`:salesTrend<0?`▼ ${Math.abs(salesTrend)}% vs last month':'— same as last month`}
+          ${salesTrend===null ? '— no prior data' : salesTrend>0 ? '▲ '+salesTrend+'% vs last month' : salesTrend<0 ? '▼ '+Math.abs(salesTrend)+'% vs last month' : '— same as last month'}
         </div>
       </div>
       <div class="trend-card">
@@ -204,7 +204,7 @@ function renderAll(area) {
           <div class="lbl">${escHtml(short)}</div>
           <div class="num">${thisB.toLocaleString('en-US')} <span style="font-size:11px;color:var(--text-dim)">AED</span></div>
           <div class="trend-line ${tr===null?'neutral':tr>0?'up':'down'}">
-            ${tr===null?'— no prior data':tr>0?`▲ ${tr}%`:tr<0?`▼ ${Math.abs(tr)}%':'— same'} ${tr!==null?'vs last month':''}
+            ${tr===null ? '— no prior data' : tr>0 ? '▲ '+tr+'% vs last month' : tr<0 ? '▼ '+Math.abs(tr)+'% vs last month' : '— same as last month'}
           </div>
         </div>`;
       }).join('')}
