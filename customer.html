@@ -52,6 +52,21 @@
   </div>
 </div>
 
+<!-- Redeem points sheet -->
+<div class="overlay" id="redeemOverlay">
+  <div class="sheet">
+    <h2>Redeem Points</h2>
+    <div id="redeemError" class="error-msg"></div>
+    <div id="redeemSuccess" class="success-msg"></div>
+    <div id="redeemInfo" class="muted" style="margin-bottom:14px;"></div>
+    <label>Points to Redeem *</label>
+    <input type="number" id="r_points" min="10" step="10" placeholder="e.g. 500">
+    <div id="redeemPreview" class="muted" style="margin-bottom:14px;"></div>
+    <button class="btn" id="confirmRedeemBtn">Confirm Redemption</button>
+    <button type="button" class="btn secondary" id="cancelRedeemBtn" style="margin-top:10px;">Cancel</button>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
 <script type="module" src="auth-guard.js"></script>
 <script type="module" src="customer.js"></script>
