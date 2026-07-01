@@ -4,6 +4,7 @@ import { requireAuth } from "./auth-guard.js";
 import { getTierForPurchase, generateVoucherCode, VOUCHER_VALID_DAYS } from "./voucher-config.js";
 import { BRANCHES } from "./branches-config.js";
 import { getCustomerLevel, getThreeMonthTotal, getMonthKeyFromDateStr } from "./levels-config.js";
+import { calculatePoints, pointsToAED } from "./points-config.js";
 import {
   doc, getDoc, updateDoc, collection, addDoc, getDocs, query, orderBy,
   serverTimestamp, Timestamp, where, increment
@@ -51,6 +52,12 @@ function renderInfo() {
     ? `<span class="level-badge ${level.badgeClass}">${level.name}</span>`
     : "";
 
+  const totalPoints = customerData.totalPoints || 0;
+  const balanceAED = pointsToAED(totalPoints);
+
+  const totalPoints = customerData.totalPoints || 0;
+  const balanceAED = pointsToAED(totalPoints);
+
   const progressHtml = `<div class="muted">Each purchase is checked on its own: 1000+ = 50 AED, 1500+ = 80 AED, 2000+ = 150 AED voucher</div>`;
 
   document.getElementById("infoCard").innerHTML = `
@@ -63,6 +70,14 @@ function renderInfo() {
         <div class="num">${customerData.activeVoucherCount || 0}</div>
         <div class="lbl">Active Vouchers</div>
       </div>
+      <div class="stat-box">
+        <div class="num">${totalPoints}</div>
+        <div class="lbl">Points</div>
+      </div>
+      <div class="stat-box">
+        <div class="num">${balanceAED}</div>
+        <div class="lbl">Balance (AED)</div>
+      </div>
     </div>
     ${progressHtml}
     <div class="muted" style="margin-top:6px;">Last 3 months: ${threeMonthTotal} AED</div>
@@ -72,6 +87,9 @@ function renderInfo() {
       ✉️ ${escapeHtml(customerData.email || "—")}<br>
       🎂 ${escapeHtml(customerData.birthday || "—")}
     </div>
+    <button class="btn secondary" id="openRedeemBtn" style="margin-top:14px;" ${totalPoints < 10 ? "disabled" : ""}>
+      Redeem Points (${totalPoints} pts = ${balanceAED} AED)
+    </button>
   `;
 }
 
@@ -214,11 +232,12 @@ document.getElementById("purchaseForm").addEventListener("submit", async (e) => 
       notifyVoucherIssued(customerData, voucherTier.discount, code, expires);
     }
 
-    // 3. update customer doc
+    // 3. update customer doc (including new points)
     const monthKey = getMonthKeyFromDateStr(date);
     const oldBranchCounts = customerData.branchCounts || {};
     const newBranchCounts = { ...oldBranchCounts, [branch]: (oldBranchCounts[branch] || 0) + 1 };
     const topBranch = Object.keys(newBranchCounts).sort((a, b) => newBranchCounts[b] - newBranchCounts[a])[0];
+    const pointsEarned = calculatePoints(amount);
 
     await updateDoc(doc(db, "customers", customerId), {
       totalPurchases: newTotal,
@@ -227,12 +246,14 @@ document.getElementById("purchaseForm").addEventListener("submit", async (e) => 
       branchCounts: newBranchCounts,
       topBranch,
       lastPurchaseDate: date,
+      totalPoints: increment(pointsEarned),
     });
 
     document.getElementById("purchaseForm").reset();
+    const pointsMsg = pointsEarned > 0 ? ` +${pointsEarned} pts earned.` : "";
     successBox.textContent = newVoucherCount > 0
-      ? `Purchase recorded! ${newVoucherCount} new voucher issued 🎉`
-      : "Purchase recorded successfully.";
+      ? `Purchase recorded! ${newVoucherCount} new voucher issued 🎉${pointsMsg}`
+      : `Purchase recorded successfully.${pointsMsg}`;
     successBox.classList.add("show");
 
     setTimeout(() => {
@@ -252,6 +273,111 @@ function notifyVoucherIssued(customer, discount, code, expiresDate) {
   // Placeholder — will call EmailJS once the account is set up.
   console.log("TODO: email voucher", { to: customer.email, discount, code, expiresDate });
 }
+
+// ---- Redeem points flow ----
+// The button is inside infoCard which is re-rendered on each load,
+// so we use event delegation on the card container.
+document.getElementById("infoCard").addEventListener("click", (e) => {
+  if (e.target.id === "openRedeemBtn" || e.target.closest("#openRedeemBtn")) {
+    openRedeemSheet();
+  }
+});
+
+// Also wire up after every renderInfo() call via event delegation on document
+document.addEventListener("click", (e) => {
+  if (e.target.id === "openRedeemBtn") openRedeemSheet();
+});
+
+const redeemOverlay = document.getElementById("redeemOverlay");
+const redeemPointsInput = document.getElementById("r_points");
+const redeemPreview = document.getElementById("redeemPreview");
+
+function openRedeemSheet() {
+  const totalPoints = customerData.totalPoints || 0;
+  document.getElementById("redeemInfo").textContent =
+    `Available: ${totalPoints} points = ${pointsToAED(totalPoints)} AED`;
+  redeemPointsInput.max = totalPoints;
+  redeemPointsInput.value = "";
+  redeemPreview.textContent = "";
+  document.getElementById("redeemError").classList.remove("show");
+  document.getElementById("redeemSuccess").classList.remove("show");
+  redeemOverlay.classList.add("show");
+}
+
+document.getElementById("cancelRedeemBtn").addEventListener("click", () =>
+  redeemOverlay.classList.remove("show")
+);
+
+redeemPointsInput.addEventListener("input", () => {
+  const pts = parseInt(redeemPointsInput.value) || 0;
+  const totalPoints = customerData.totalPoints || 0;
+  if (pts > 0 && pts <= totalPoints) {
+    redeemPreview.textContent = `${pts} points = ${pointsToAED(pts)} AED discount`;
+  } else if (pts > totalPoints) {
+    redeemPreview.textContent = `Not enough points (max: ${totalPoints})`;
+  } else {
+    redeemPreview.textContent = "";
+  }
+});
+
+document.getElementById("confirmRedeemBtn").addEventListener("click", async () => {
+  const pts = parseInt(redeemPointsInput.value) || 0;
+  const totalPoints = customerData.totalPoints || 0;
+  const redeemError = document.getElementById("redeemError");
+  const redeemSuccess = document.getElementById("redeemSuccess");
+  redeemError.classList.remove("show");
+  redeemSuccess.classList.remove("show");
+
+  if (pts < 10) {
+    redeemError.textContent = "Minimum 10 points to redeem.";
+    redeemError.classList.add("show");
+    return;
+  }
+  if (pts > totalPoints) {
+    redeemError.textContent = `Not enough points. Available: ${totalPoints}.`;
+    redeemError.classList.add("show");
+    return;
+  }
+
+  try {
+    const discountAED = parseFloat(pointsToAED(pts));
+
+    // Record redemption as a voucher so it shows in the vouchers list
+    const code = generateVoucherCode();
+    const expires = new Date();
+    expires.setDate(expires.getDate() + 30);
+    await addDoc(collection(db, "vouchers"), {
+      customerId,
+      customerName: customerData.name || "",
+      customerEmail: customerData.email || "",
+      discount: discountAED,
+      code,
+      status: "active",
+      issuedAt: serverTimestamp(),
+      expiresAt: Timestamp.fromDate(expires),
+      reason: "points_redemption",
+    });
+
+    // Deduct points
+    await updateDoc(doc(db, "customers", customerId), {
+      totalPoints: increment(-pts),
+      activeVoucherCount: (customerData.activeVoucherCount || 0) + 1,
+    });
+
+    redeemSuccess.textContent = `✅ ${pts} points redeemed for ${discountAED} AED voucher!`;
+    redeemSuccess.classList.add("show");
+
+    setTimeout(() => {
+      redeemOverlay.classList.remove("show");
+      loadAll();
+    }, 1400);
+
+  } catch (err) {
+    redeemError.textContent = "Failed to redeem points.";
+    redeemError.classList.add("show");
+    console.error(err);
+  }
+});
 
 function escapeHtml(str) {
   return String(str).replace(/[&<>"']/g, (m) => ({
