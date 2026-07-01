@@ -94,13 +94,23 @@ function renderReport(area, purchases, customers) {
     return lv && lv.name === 'VIP';
   });
 
-  // ── Branch sales ──
+  // ── Branch sales (all time) ──
   const branchSales = {};
   purchases.forEach(p => {
     if (p.branch) branchSales[p.branch] = (branchSales[p.branch] || 0) + (p.amount || 0);
   });
   const branchEntries = Object.entries(branchSales).sort((a,b) => b[1]-a[1]);
   const branchTotal = branchEntries.reduce((s,[,v]) => s+v, 0);
+
+  // ── Branch sales this month vs last month ──
+  const branchThisMonth = {};
+  const branchLastMonth = {};
+  purchases.forEach(p => {
+    if (!p.branch) return;
+    const key = (p.date || '').slice(0,7);
+    if (key === thisMonth) branchThisMonth[p.branch] = (branchThisMonth[p.branch] || 0) + (p.amount || 0);
+    if (key === lastMonth) branchLastMonth[p.branch] = (branchLastMonth[p.branch] || 0) + (p.amount || 0);
+  });
 
   // ── Customer levels ──
   let lvCounts = { VIP:0, Gold:0, Silver:0, None:0 };
@@ -143,6 +153,24 @@ function renderReport(area, purchases, customers) {
         <div class="num">${vipCustomers.length}</div>
         <div class="trend-line neutral">— last 3 months</div>
       </div>
+    </div>
+
+    <div class="section-title">This Month — By Branch</div>
+    <div class="trend-grid">
+      ${branchEntries.map(([branch]) => {
+        const thisB = branchThisMonth[branch] || 0;
+        const lastB = branchLastMonth[branch] || 0;
+        const trend = lastB > 0 ? Math.round(((thisB - lastB) / lastB) * 100) : 0;
+        const shortName = branch.replace('Al Hudu ', '');
+        return `
+          <div class="trend-card">
+            <div class="lbl">${escHtml(shortName)}</div>
+            <div class="num">${thisB.toLocaleString('en-US')} <span style="font-size:11px;color:var(--text-dim)">AED</span></div>
+            <div class="trend-line ${trend>0?'up':trend<0?'down':'neutral'}">
+              ${trend>0?'▲':trend<0?'▼':'—'} ${lastB > 0 ? Math.abs(trend)+'% vs last month' : 'no data last month'}
+            </div>
+          </div>`;
+      }).join('')}
     </div>
 
     <div class="section-title">Monthly Sales (Last 6 Months)</div>
