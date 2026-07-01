@@ -55,9 +55,6 @@ function renderInfo() {
   const totalPoints = customerData.totalPoints || 0;
   const balanceAED = pointsToAED(totalPoints);
 
-  const totalPoints = customerData.totalPoints || 0;
-  const balanceAED = pointsToAED(totalPoints);
-
   const progressHtml = `<div class="muted">Each purchase is checked on its own: 1000+ = 50 AED, 1500+ = 80 AED, 2000+ = 150 AED voucher</div>`;
 
   document.getElementById("infoCard").innerHTML = `
