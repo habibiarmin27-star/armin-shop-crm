@@ -63,6 +63,34 @@
 .top-table .t-row:last-child{ border-bottom:none; }
 .t-row .t-name{ font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .t-row .t-amt{ font-weight:800; color:var(--accent); }
+
+/* Filter tabs */
+.filter-bar{
+  display:flex; gap:6px; margin-bottom:16px; flex-wrap:wrap;
+}
+.filter-tab{
+  padding:7px 14px; border-radius:20px; font-size:12px; font-weight:700;
+  background:var(--surface); color:var(--text-dim); border:1px solid var(--border);
+  cursor:pointer; font-family:inherit; transition:all .15s;
+}
+.filter-tab.active{
+  background:var(--accent); color:var(--accent-text); border-color:var(--accent);
+}
+
+/* Time toggle */
+.time-toggle{
+  display:flex; background:var(--surface-2); border-radius:8px;
+  padding:3px; gap:3px; margin-bottom:14px; border:1px solid var(--border);
+}
+.time-btn{
+  flex:1; padding:7px; border-radius:6px; font-size:12px; font-weight:700;
+  background:none; color:var(--text-dim); border:none; cursor:pointer;
+  font-family:inherit; transition:all .15s;
+}
+.time-btn.active{
+  background:var(--surface); color:var(--accent);
+  box-shadow:0 1px 4px rgba(57,43,31,.12);
+}
 </style>
 </head>
 <body>
