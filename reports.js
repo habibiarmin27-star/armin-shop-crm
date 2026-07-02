@@ -1,4 +1,4 @@
-// reports.js — Manager dashboard with branch filter + monthly/weekly toggle
+// reports.js
 import { db } from "./firebase-init.js";
 import { requireAuth } from "./auth-guard.js";
 import { MANAGER_EMAILS } from "./manager-config.js";
@@ -10,16 +10,16 @@ const ACCENT  = '#7A4E2A';
 const ACCENT2 = '#C9A27A';
 const ACCENT3 = '#E8D5B7';
 const GRID    = '#E3D6C1';
-const DIM     = '#8A7860';
 const BRANCH_COLORS = [ACCENT, ACCENT2, '#E8B87A', '#D4A06A'];
 
 Chart.defaults.font.family = '-apple-system,"Segoe UI",Roboto,sans-serif';
-Chart.defaults.color = DIM;
+Chart.defaults.color = '#8A7860';
 
 let allPurchases = [];
 let allCustomers = [];
-let activeBranch = 'all';   // 'all' | branch name
-let activeTime   = 'monthly'; // 'monthly' | 'weekly'
+let activeBranch = 'all';
+let activeTime   = 'monthly';
+let activeDailyBranch = 'all';
 let barChartInstance = null;
 
 requireAuth((user) => {
@@ -38,60 +38,66 @@ async function loadReport() {
     allCustomers = cSnap.docs.map(d => ({ id: d.id, ...d.data() }));
     renderAll(area);
   } catch (err) {
-    area.innerHTML = `<div class="empty-state">Failed to load report</div>`;
+    area.innerHTML = '<div class="empty-state">Failed to load report</div>';
     console.error(err);
   }
 }
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
-function monthKey(date = new Date()) {
-  return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}`;
+function monthKey(date) {
+  if (!date) date = new Date();
+  return date.getFullYear() + '-' + String(date.getMonth()+1).padStart(2,'0');
 }
 
 function lastNMonthKeys(n) {
   const keys = [], now = new Date();
   for (let i = n-1; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
-    keys.push(monthKey(d));
+    keys.push(monthKey(new Date(now.getFullYear(), now.getMonth()-i, 1)));
   }
   return keys;
 }
 
 function monthLabel(key) {
-  const [y,m] = key.split('-');
-  return new Date(+y,+m-1,1).toLocaleString('en-US',{month:'short'});
+  const parts = key.split('-');
+  return new Date(+parts[0], +parts[1]-1, 1).toLocaleString('en-US', {month:'short'});
 }
 
-// Returns ISO week label "Wn MMM" for a date string "YYYY-MM-DD"
-function weekLabel(dateStr) {
-  const d = new Date(dateStr);
-  const jan1 = new Date(d.getFullYear(),0,1);
-  const wk = Math.ceil(((d-jan1)/86400000 + jan1.getDay()+1)/7);
-  return `W${wk} ${d.toLocaleString('en-US',{month:'short'})}`;
-}
-
-// Get start-of-week (Mon) for a date string
 function weekStart(dateStr) {
   const d = new Date(dateStr);
   const day = d.getDay();
-  const diff = (day === 0 ? -6 : 1 - day);
+  const diff = day === 0 ? -6 : 1 - day;
   d.setDate(d.getDate() + diff);
   return d.toISOString().slice(0,10);
 }
 
-// Filtered purchases by active branch
+function weekLabel(ws) {
+  const d = new Date(ws);
+  const jan1 = new Date(d.getFullYear(), 0, 1);
+  const wk = Math.ceil(((d - jan1) / 86400000 + jan1.getDay() + 1) / 7);
+  return 'W' + wk + ' ' + d.toLocaleString('en-US', {month:'short'});
+}
+
 function filteredPurchases() {
   if (activeBranch === 'all') return allPurchases;
   return allPurchases.filter(p => p.branch === activeBranch);
 }
 
-function escHtml(s) {
-  return String(s).replace(/[&<>"']/g, m =>
-    ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
+function trendText(current, prev) {
+  if (prev === 0 || prev === null || prev === undefined) return '— no prior data';
+  const pct = Math.round(((current - prev) / prev) * 100);
+  if (pct > 0) return '▲ ' + pct + '% vs last month';
+  if (pct < 0) return '▼ ' + Math.abs(pct) + '% vs last month';
+  return '— same as last month';
 }
 
-// ── Main render ───────────────────────────────────────────────────────────────
+function trendClass(current, prev) {
+  if (!prev) return 'neutral';
+  return current >= prev ? 'up' : 'down';
+}
+
+function e(s) {
+  return String(s).replace(/[&<>"']/g, m =>
+    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
 
 function renderAll(area) {
   const now   = new Date();
@@ -99,279 +105,341 @@ function renderAll(area) {
   const lastM = monthKey(new Date(now.getFullYear(), now.getMonth()-1, 1));
   const fp    = filteredPurchases();
 
-  // Sales this/last month (filtered)
+  // Sales by month (filtered)
   const salesByMonth = {};
   fp.forEach(p => {
-    const k = (p.date||'').slice(0,7);
-    if (k) salesByMonth[k] = (salesByMonth[k]||0) + (p.amount||0);
+    const k = (p.date || '').slice(0,7);
+    if (k) salesByMonth[k] = (salesByMonth[k] || 0) + (p.amount || 0);
   });
-  const thisMonthSales = salesByMonth[thisM]||0;
-  const lastMonthSales = salesByMonth[lastM]||0;
-  const salesTrend = lastMonthSales > 0
-    ? Math.round(((thisMonthSales-lastMonthSales)/lastMonthSales)*100) : null;
+  const thisMonthSales = salesByMonth[thisM] || 0;
+  const lastMonthSales = salesByMonth[lastM] || 0;
 
-  // New customers this month (not branch-filtered — always total)
-  const newThisMonth = allCustomers.filter(c =>
-    (c.createdAt?.seconds ? new Date(c.createdAt.seconds*1000) : new Date(0))
-      .toISOString().slice(0,7) === thisM).length;
+  // New customers
+  const newThisMonth = allCustomers.filter(c => {
+    const d = c.createdAt && c.createdAt.seconds ? new Date(c.createdAt.seconds * 1000) : new Date(0);
+    return d.toISOString().slice(0,7) === thisM;
+  }).length;
 
-  // Vouchers & VIP (always total)
-  const activeVouchers = allCustomers.reduce((s,c)=>s+(c.activeVoucherCount||0),0);
+  // Vouchers & VIP
+  const activeVouchers = allCustomers.reduce((s,c) => s + (c.activeVoucherCount || 0), 0);
   const vipCount = allCustomers.filter(c => {
     const lv = getCustomerLevel(getThreeMonthTotal(c.monthlySpend));
     return lv && lv.name === 'VIP';
   }).length;
 
-  // Branch sales (all time, for donut)
+  // Branch sales all-time
   const branchSales = {};
   allPurchases.forEach(p => {
-    if (p.branch) branchSales[p.branch] = (branchSales[p.branch]||0) + (p.amount||0);
+    if (p.branch) branchSales[p.branch] = (branchSales[p.branch] || 0) + (p.amount || 0);
   });
-  const branchEntries = Object.entries(branchSales).sort((a,b)=>b[1]-a[1]);
-  const branchTotal   = branchEntries.reduce((s,[,v])=>s+v, 0);
+  const branchEntries = Object.entries(branchSales).sort((a,b) => b[1]-a[1]);
+  const branchTotal   = branchEntries.reduce((s, e2) => s + e2[1], 0);
 
-  // Per-branch this month
-  const branchThisMonth = {}, branchLastMonth = {};
+  // Per-branch this/last month
+  const branchThisM = {}, branchLastM = {};
   allPurchases.forEach(p => {
     if (!p.branch) return;
-    const k = (p.date||'').slice(0,7);
-    if (k===thisM) branchThisMonth[p.branch] = (branchThisMonth[p.branch]||0)+(p.amount||0);
-    if (k===lastM) branchLastMonth[p.branch] = (branchLastMonth[p.branch]||0)+(p.amount||0);
+    const k = (p.date || '').slice(0,7);
+    if (k === thisM) branchThisM[p.branch] = (branchThisM[p.branch] || 0) + (p.amount || 0);
+    if (k === lastM) branchLastM[p.branch] = (branchLastM[p.branch] || 0) + (p.amount || 0);
   });
 
-  // Level counts (always total)
-  const lvCounts = {VIP:0,Gold:0,Silver:0,None:0};
+  // Level counts
+  const lvc = {VIP:0, Gold:0, Silver:0, None:0};
   allCustomers.forEach(c => {
     const lv = getCustomerLevel(getThreeMonthTotal(c.monthlySpend));
-    if (lv) lvCounts[lv.name] = (lvCounts[lv.name]||0)+1; else lvCounts.None++;
+    if (lv) lvc[lv.name] = (lvc[lv.name] || 0) + 1; else lvc.None++;
   });
 
   // Top customers
   const top10 = [...allCustomers]
-    .sort((a,b)=>(b.totalPurchases||0)-(a.totalPurchases||0)).slice(0,10);
+    .sort((a,b) => (b.totalPurchases||0) - (a.totalPurchases||0)).slice(0,10);
 
-  // Branch label for title
-  const branchLabel = activeBranch === 'all' ? 'All Branches'
-    : activeBranch.replace('Al Hudu ','');
+  const branchTitle = activeBranch === 'all' ? 'All Branches' : activeBranch.replace('Al Hudu ','');
 
-  // ── HTML ──
-  area.innerHTML = `
-    <!-- Branch filter tabs -->
-    <div class="filter-bar">
-      <button class="filter-tab ${activeBranch==='all'?'active':''}" data-branch="all">All Branches</button>
-      ${BRANCHES.map(b => `
-        <button class="filter-tab ${activeBranch===b?'active':''}" data-branch="${escHtml(b)}">
-          ${escHtml(b.replace('Al Hudu ',''))}
-        </button>`).join('')}
-    </div>
-
-    <!-- Overview cards -->
-    <div class="section-title">Overview — This Month · ${escHtml(branchLabel)}</div>
-    <div class="trend-grid">
-      <div class="trend-card">
-        <div class="lbl">Sales This Month</div>
-        <div class="num">${thisMonthSales.toLocaleString('en-US')} <span style="font-size:11px;color:var(--text-dim)">AED</span></div>
-        <div class="trend-line ${salesTrend===null?'neutral':salesTrend>0?'up':'down'}">
-          ${salesTrend===null ? '— no prior data' : salesTrend>0 ? '▲ '+salesTrend+'% vs last month' : salesTrend<0 ? '▼ '+Math.abs(salesTrend)+'% vs last month' : '— same as last month'}
-        </div>
-      </div>
-      <div class="trend-card">
-        <div class="lbl">New Customers</div>
-        <div class="num">${newThisMonth}</div>
-        <div class="trend-line neutral">— this month (all branches)</div>
-      </div>
-      <div class="trend-card green">
-        <div class="lbl">Active Vouchers</div>
-        <div class="num">${activeVouchers}</div>
-        <div class="trend-line neutral">— across all customers</div>
-      </div>
-      <div class="trend-card purple">
-        <div class="lbl">VIP Customers</div>
-        <div class="num">${vipCount}</div>
-        <div class="trend-line neutral">— last 3 months</div>
-      </div>
-    </div>
-
-    <!-- Per-branch this month -->
-    <div class="section-title">This Month — By Branch</div>
-    <div class="trend-grid">
-      ${branchEntries.map(([branch]) => {
-        const thisB = branchThisMonth[branch]||0;
-        const lastB = branchLastMonth[branch]||0;
-        const tr = lastB > 0 ? Math.round(((thisB-lastB)/lastB)*100) : null;
-        const short = branch.replace('Al Hudu ','');
-        return `<div class="trend-card">
-          <div class="lbl">${escHtml(short)}</div>
-          <div class="num">${thisB.toLocaleString('en-US')} <span style="font-size:11px;color:var(--text-dim)">AED</span></div>
-          <div class="trend-line ${tr===null?'neutral':tr>0?'up':'down'}">
-            ${tr===null ? '— no prior data' : tr>0 ? '▲ '+tr+'% vs last month' : tr<0 ? '▼ '+Math.abs(tr)+'% vs last month' : '— same as last month'}
-          </div>
-        </div>`;
-      }).join('')}
-    </div>
-
-    <!-- Chart with time toggle -->
-    <div class="section-title">Sales Chart · ${escHtml(branchLabel)}</div>
-    <div class="chart-card">
-      <div class="chart-title">Revenue Trend</div>
-      <div class="time-toggle">
-        <button class="time-btn ${activeTime==='monthly'?'active':''}" data-time="monthly">Monthly (6 mo)</button>
-        <button class="time-btn ${activeTime==='weekly'?'active':''}" data-time="weekly">Weekly (8 wk)</button>
-      </div>
-      <div class="chart-wrap"><canvas id="barChart"></canvas></div>
-    </div>
-
-    <!-- Donut + Pie -->
-    <div class="section-title">Branch & Customer Mix</div>
-    <div class="duo-grid">
-      <div class="mini-chart-card">
-        <div class="chart-title">Branch Sales</div>
-        <div class="mini-wrap"><canvas id="donutChart"></canvas></div>
-        <div class="legend" id="branchLegend"></div>
-      </div>
-      <div class="mini-chart-card">
-        <div class="chart-title">Customer Levels</div>
-        <div class="mini-wrap"><canvas id="pieChart"></canvas></div>
-        <div class="legend">
-          <div class="legend-item"><div class="legend-dot" style="background:#8C5E96"></div>VIP: ${lvCounts.VIP}</div>
-          <div class="legend-item"><div class="legend-dot" style="background:#9C7A30"></div>Gold: ${lvCounts.Gold}</div>
-          <div class="legend-item"><div class="legend-dot" style="background:#7E7660"></div>Silver: ${lvCounts.Silver}</div>
-          <div class="legend-item"><div class="legend-dot" style="background:#E3D6C1"></div>None: ${lvCounts.None}</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Top customers -->
-    <div class="section-title">Top Customers</div>
-    <div class="top-table">
-      <div class="t-head"><span>Name</span><span>Level</span><span>Points</span><span>Total (AED)</span></div>
-      ${top10.map(c => {
-        const lv = getCustomerLevel(getThreeMonthTotal(c.monthlySpend));
-        const lvN = lv ? lv.name : '—';
-        const lvC = lv ? lv.name.toLowerCase() : 'none';
-        return `<div class="t-row">
-          <span class="t-name">${escHtml(c.name||'Unnamed')}</span>
-          <span><span class="level-badge level-${lvC}">${lvN}</span></span>
-          <span>${c.totalPoints||0}</span>
-          <span class="t-amt">${(c.totalPurchases||0).toLocaleString('en-US')}</span>
-        </div>`;
-      }).join('')}
-    </div>
-  `;
-
-  // ── Charts ──
-  buildBarChart(fp);
-  buildDonutChart(branchEntries, branchTotal);
-  buildPieChart(lvCounts);
-  buildBranchLegend(branchEntries, branchTotal);
-
-  // ── Event listeners ──
-  area.querySelectorAll('[data-branch]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      activeBranch = btn.dataset.branch;
-      renderAll(area);
-    });
+  // Build filter tabs
+  let filterTabs = '<button class="filter-tab ' + (activeBranch==='all'?'active':'') + '" data-branch="all">All Branches</button>';
+  BRANCHES.forEach(b => {
+    filterTabs += '<button class="filter-tab ' + (activeBranch===b?'active':'') + '" data-branch="' + e(b) + '">' + e(b.replace('Al Hudu ','')) + '</button>';
   });
 
+  // Build per-branch cards
+  let branchCards = '';
+  branchEntries.forEach(function(entry) {
+    const branch = entry[0];
+    const thisB  = branchThisM[branch] || 0;
+    const lastB  = branchLastM[branch] || 0;
+    const short  = branch.replace('Al Hudu ','');
+    branchCards += '<div class="trend-card">' +
+      '<div class="lbl">' + e(short) + '</div>' +
+      '<div class="num">' + thisB.toLocaleString('en-US') + ' <span style="font-size:11px;color:var(--text-dim)">AED</span></div>' +
+      '<div class="trend-line ' + trendClass(thisB, lastB) + '">' + trendText(thisB, lastB) + '</div>' +
+      '</div>';
+  });
+
+  // Build top customers rows
+  let topRows = '';
+  top10.forEach(c => {
+    const lv  = getCustomerLevel(getThreeMonthTotal(c.monthlySpend));
+    const lvN = lv ? lv.name : '—';
+    const lvC = lv ? lv.name.toLowerCase() : 'none';
+    topRows += '<div class="t-row">' +
+      '<span class="t-name">' + e(c.name || 'Unnamed') + '</span>' +
+      '<span><span class="level-badge level-' + lvC + '">' + lvN + '</span></span>' +
+      '<span>' + (c.totalPoints || 0) + '</span>' +
+      '<span class="t-amt">' + (c.totalPurchases||0).toLocaleString('en-US') + '</span>' +
+      '</div>';
+  });
+
+  area.innerHTML =
+    '<div class="filter-bar">' + filterTabs + '</div>' +
+
+    '<div class="section-title">Overview — This Month · ' + e(branchTitle) + '</div>' +
+    '<div class="trend-grid">' +
+      '<div class="trend-card"><div class="lbl">Sales This Month</div>' +
+        '<div class="num">' + thisMonthSales.toLocaleString('en-US') + ' <span style="font-size:11px;color:var(--text-dim)">AED</span></div>' +
+        '<div class="trend-line ' + trendClass(thisMonthSales, lastMonthSales) + '">' + trendText(thisMonthSales, lastMonthSales) + '</div></div>' +
+      '<div class="trend-card"><div class="lbl">New Customers</div>' +
+        '<div class="num">' + newThisMonth + '</div>' +
+        '<div class="trend-line neutral">— this month (all branches)</div></div>' +
+      '<div class="trend-card green"><div class="lbl">Active Vouchers</div>' +
+        '<div class="num">' + activeVouchers + '</div>' +
+        '<div class="trend-line neutral">— across all customers</div></div>' +
+      '<div class="trend-card purple"><div class="lbl">VIP Customers</div>' +
+        '<div class="num">' + vipCount + '</div>' +
+        '<div class="trend-line neutral">— last 3 months</div></div>' +
+    '</div>' +
+
+    '<div class="section-title">This Month — By Branch</div>' +
+    '<div class="trend-grid">' + branchCards + '</div>' +
+
+    '<div class="section-title">Sales Chart · ' + e(branchTitle) + '</div>' +
+    '<div class="chart-card">' +
+      '<div class="chart-title">Revenue Trend</div>' +
+      '<div class="time-toggle">' +
+        '<button class="time-btn ' + (activeTime==='monthly'?'active':'') + '" data-time="monthly">Monthly</button>' +
+        '<button class="time-btn ' + (activeTime==='weekly'?'active':'') + '" data-time="weekly">Weekly</button>' +
+        '<button class="time-btn ' + (activeTime==='daily'?'active':'') + '" data-time="daily">Daily</button>' +
+      '</div>' +
+      '<div class="branch-pills" id="dailyBranchPills" style="display:' + (activeTime==='daily'?'flex':'none') + '">' +
+        '<button class="branch-pill ' + (activeDailyBranch==='all'?'active':'') + '" data-daily-branch="all">All</button>' +
+        BRANCHES.map(b => '<button class="branch-pill ' + (activeDailyBranch===b?'active':'') + '" data-daily-branch="' + e(b) + '">' + e(b.replace('Al Hudu ','')) + '</button>').join('') +
+      '</div>' +
+      '<div class="chart-wrap"><canvas id="barChart"></canvas></div>' +
+    '</div>' +
+
+    '<div class="section-title">Branch & Customer Mix</div>' +
+    '<div class="duo-grid">' +
+      '<div class="mini-chart-card"><div class="chart-title">Branch Sales</div>' +
+        '<div class="mini-wrap"><canvas id="donutChart"></canvas></div>' +
+        '<div class="legend" id="branchLegend"></div></div>' +
+      '<div class="mini-chart-card"><div class="chart-title">Customer Levels</div>' +
+        '<div class="mini-wrap"><canvas id="pieChart"></canvas></div>' +
+        '<div class="legend">' +
+          '<div class="legend-item"><div class="legend-dot" style="background:#8C5E96"></div>VIP: ' + lvc.VIP + '</div>' +
+          '<div class="legend-item"><div class="legend-dot" style="background:#9C7A30"></div>Gold: ' + lvc.Gold + '</div>' +
+          '<div class="legend-item"><div class="legend-dot" style="background:#7E7660"></div>Silver: ' + lvc.Silver + '</div>' +
+          '<div class="legend-item"><div class="legend-dot" style="background:#E3D6C1"></div>None: ' + lvc.None + '</div>' +
+        '</div></div>' +
+    '</div>' +
+
+    (activeTime === 'daily' ? buildDailyTableHTML(allPurchases) : '') +
+
+    '<div class="section-title">Top Customers</div>' +
+    '<div class="top-table">' +
+      '<div class="t-head"><span>Name</span><span>Level</span><span>Points</span><span>Total (AED)</span></div>' +
+      topRows +
+    '</div>';
+
+  // Charts
+  buildBarChart(fp);
+  buildDonutChart(branchEntries, branchTotal);
+  buildPieChart(lvc);
+
+  // Legend
+  const legendEl = document.getElementById('branchLegend');
+  if (legendEl) {
+    legendEl.innerHTML = branchEntries.map((entry, i) =>
+      '<div class="legend-item"><div class="legend-dot" style="background:' + (BRANCH_COLORS[i] || '#ccc') + '"></div>' +
+      e(entry[0].replace('Al Hudu ','')) + ': ' + Math.round((entry[1]/branchTotal)*100) + '%</div>'
+    ).join('');
+  }
+
+  // Event listeners
+  area.querySelectorAll('[data-branch]').forEach(btn => {
+    btn.addEventListener('click', () => { activeBranch = btn.dataset.branch; renderAll(area); });
+  });
   area.querySelectorAll('[data-time]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      activeTime = btn.dataset.time;
-      renderAll(area);
-    });
+    btn.addEventListener('click', () => { activeTime = btn.dataset.time; renderAll(area); });
+  });
+
+  area.querySelectorAll('[data-daily-branch]').forEach(btn => {
+    btn.addEventListener('click', () => { activeDailyBranch = btn.dataset.dailyBranch; renderAll(area); });
   });
 }
 
-// ── Build bar chart ───────────────────────────────────────────────────────────
-
 function buildBarChart(fp) {
   if (barChartInstance) { barChartInstance.destroy(); barChartInstance = null; }
-
-  let labels = [], data = [], colors = [];
+  const now = new Date();
+  const thisM = monthKey(now);
+  const ctx = document.getElementById('barChart');
 
   if (activeTime === 'monthly') {
     const months6 = lastNMonthKeys(6);
-    const now = new Date(); const thisM = monthKey(now);
     const byMonth = {};
     fp.forEach(p => {
-      const k = (p.date||'').slice(0,7);
-      if (k) byMonth[k] = (byMonth[k]||0)+(p.amount||0);
+      const k = (p.date || '').slice(0,7);
+      if (k) byMonth[k] = (byMonth[k] || 0) + (p.amount || 0);
     });
-    labels = months6.map(monthLabel);
-    data   = months6.map(k => byMonth[k]||0);
-    colors = months6.map(k => k===thisM ? ACCENT : ACCENT3);
+    barChartInstance = new Chart(ctx, {
+      type:'bar',
+      data:{ labels: months6.map(monthLabel), datasets:[{
+        data: months6.map(k => byMonth[k]||0),
+        backgroundColor: months6.map(k => k===thisM?ACCENT:ACCENT3),
+        borderRadius:6, borderSkipped:false
+      }]},
+      options: barOpts()
+    });
 
-  } else {
-    // Weekly — last 8 weeks
+  } else if (activeTime === 'weekly') {
     const byWeek = {};
     fp.forEach(p => {
       if (!p.date) return;
       const ws = weekStart(p.date);
-      byWeek[ws] = (byWeek[ws]||0)+(p.amount||0);
+      byWeek[ws] = (byWeek[ws]||0) + (p.amount||0);
     });
     const weeks = Object.keys(byWeek).sort().slice(-8);
-    labels = weeks.map(w => weekLabel(w));
-    data   = weeks.map(w => byWeek[w]||0);
     const lastWk = weeks[weeks.length-1];
-    colors = weeks.map(w => w===lastWk ? ACCENT : ACCENT3);
-  }
+    barChartInstance = new Chart(ctx, {
+      type:'bar',
+      data:{ labels: weeks.map(weekLabel), datasets:[{
+        data: weeks.map(w => byWeek[w]||0),
+        backgroundColor: weeks.map(w => w===lastWk?ACCENT:ACCENT3),
+        borderRadius:6, borderSkipped:false
+      }]},
+      options: barOpts()
+    });
 
-  barChartInstance = new Chart(document.getElementById('barChart'), {
-    type: 'bar',
-    data: {
-      labels,
-      datasets: [{ data, backgroundColor: colors, borderRadius: 6, borderSkipped: false }]
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      plugins: { legend:{display:false}, tooltip:{
-        callbacks:{ label: ctx => ` ${ctx.parsed.y.toLocaleString()} AED` }
-      }},
-      scales: {
-        x: { grid:{display:false}, ticks:{font:{size:11}} },
-        y: { grid:{color:GRID}, ticks:{font:{size:10}, callback: v => v>=1000?(v/1000)+'k':v} }
-      }
+  } else {
+    // Daily — line chart per branch, last 30 days
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate()-30);
+    const cutoffStr = cutoff.toISOString().slice(0,10);
+    const relevant = allPurchases.filter(p => p.date && p.date >= cutoffStr);
+    const days = [...new Set(relevant.map(p => p.date))].sort();
+
+    const byDayBranch = {};
+    relevant.forEach(p => {
+      if (!byDayBranch[p.date]) byDayBranch[p.date] = {};
+      const b = p.branch || 'Unknown';
+      byDayBranch[p.date][b] = (byDayBranch[p.date][b]||0) + (p.amount||0);
+    });
+
+    const datasets = [];
+    if (activeDailyBranch === 'all') {
+      BRANCHES.forEach((branch, i) => {
+        const color = BRANCH_COLORS[i];
+        datasets.push({
+          label: branch.replace('Al Hudu ',''),
+          data: days.map(d => (byDayBranch[d] && byDayBranch[d][branch]) || 0),
+          borderColor: color, backgroundColor: color+'33',
+          tension:.3, fill:true, pointRadius:3, pointHoverRadius:5
+        });
+      });
+    } else {
+      const color = BRANCH_COLORS[BRANCHES.indexOf(activeDailyBranch)] || ACCENT;
+      datasets.push({
+        label: activeDailyBranch.replace('Al Hudu ',''),
+        data: days.map(d => (byDayBranch[d] && byDayBranch[d][activeDailyBranch]) || 0),
+        borderColor: color, backgroundColor: color+'33',
+        tension:.3, fill:true, pointRadius:3, pointHoverRadius:5
+      });
     }
+
+    barChartInstance = new Chart(ctx, {
+      type:'line',
+      data:{ labels: days.map(d => new Date(d).toLocaleDateString('en-GB',{day:'numeric',month:'short'})), datasets },
+      options:{
+        responsive:true, maintainAspectRatio:false,
+        plugins:{
+          legend:{ display:true, position:'top', labels:{font:{size:11},boxWidth:12,padding:10} },
+          tooltip:{ callbacks:{ label: c2 => ' '+c2.dataset.label+': '+c2.parsed.y.toLocaleString()+' AED' } }
+        },
+        scales:{
+          x:{ grid:{display:false}, ticks:{font:{size:10},maxRotation:45} },
+          y:{ grid:{color:GRID}, ticks:{font:{size:10}, callback: v => v>=1000?(v/1000)+'k':v} }
+        }
+      }
+    });
+  }
+}
+
+function barOpts() {
+  return {
+    responsive:true, maintainAspectRatio:false,
+    plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label: c2 => ' '+c2.parsed.y.toLocaleString()+' AED' } } },
+    scales:{
+      x:{ grid:{display:false}, ticks:{font:{size:11}} },
+      y:{ grid:{color:GRID}, ticks:{font:{size:10}, callback: v => v>=1000?(v/1000)+'k':v} }
+    }
+  };
+}
+
+function buildDailyTableHTML(purchases) {
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate()-30);
+  const cutoffStr = cutoff.toISOString().slice(0,10);
+
+  const relevant = purchases.filter(p => p.date && p.date >= cutoffStr);
+  const byDay = {};
+  relevant.forEach(p => {
+    if (!byDay[p.date]) byDay[p.date] = {};
+    const b = p.branch || 'Unknown';
+    byDay[p.date][b] = (byDay[p.date][b]||0) + (p.amount||0);
   });
+
+  const days = Object.keys(byDay).sort().reverse();
+  if (days.length === 0) return '<div class="empty-state" style="margin-bottom:14px;">No sales in the last 30 days</div>';
+
+  const branchHeaders = BRANCHES.map(b => '<span>' + e(b.replace('Al Hudu ','')) + '</span>').join('');
+  let rows = '';
+  days.forEach(d => {
+    const label = new Date(d).toLocaleDateString('en-GB',{day:'numeric',month:'short'});
+    const vals  = BRANCHES.map(b => byDay[d][b]||0);
+    const total = vals.reduce((s,v)=>s+v,0);
+    rows += '<div class="t-row"><span class="date-col">'+label+'</span>' +
+      vals.map(v => '<span class="d-amt">'+(v>0?v.toLocaleString('en-US'):'—')+'</span>').join('') +
+      '<span class="d-total">'+total.toLocaleString('en-US')+'</span></div>';
+  });
+
+  return '<div class="section-title">Daily Breakdown — Last 30 Days</div>' +
+    '<div class="daily-table"><div class="t-head"><span>Date</span>'+branchHeaders+'<span>Total</span></div>'+rows+'</div>';
 }
 
 function buildDonutChart(branchEntries, branchTotal) {
   new Chart(document.getElementById('donutChart'), {
     type: 'doughnut',
     data: {
-      labels: branchEntries.map(([b])=>b),
-      datasets:[{ data: branchEntries.map(([,v])=>v), backgroundColor: BRANCH_COLORS, borderWidth:0, hoverOffset:4 }]
+      labels: branchEntries.map(e2 => e2[0]),
+      datasets: [{ data: branchEntries.map(e2 => e2[1]), backgroundColor: BRANCH_COLORS, borderWidth: 0, hoverOffset: 4 }]
     },
     options: {
-      responsive:true, maintainAspectRatio:false, cutout:'68%',
-      plugins:{ legend:{display:false}, tooltip:{
-        callbacks:{ label: ctx => ` ${Math.round((ctx.parsed/branchTotal)*100)}% — ${ctx.parsed.toLocaleString()} AED` }
-      }}
+      responsive: true, maintainAspectRatio: false, cutout: '68%',
+      plugins: { legend: {display:false}, tooltip: { callbacks: { label: ctx => ' ' + Math.round((ctx.parsed/branchTotal)*100) + '% — ' + ctx.parsed.toLocaleString() + ' AED' } } }
     }
   });
 }
 
-function buildPieChart(lvCounts) {
+function buildPieChart(lvc) {
   new Chart(document.getElementById('pieChart'), {
     type: 'doughnut',
     data: {
       labels: ['VIP','Gold','Silver','None'],
-      datasets:[{ data:[lvCounts.VIP,lvCounts.Gold,lvCounts.Silver,lvCounts.None],
-        backgroundColor:['#8C5E96','#9C7A30','#7E7660','#E3D6C1'], borderWidth:0, hoverOffset:4 }]
+      datasets: [{ data: [lvc.VIP, lvc.Gold, lvc.Silver, lvc.None], backgroundColor: ['#8C5E96','#9C7A30','#7E7660','#E3D6C1'], borderWidth: 0, hoverOffset: 4 }]
     },
     options: {
-      responsive:true, maintainAspectRatio:false, cutout:'60%',
-      plugins:{ legend:{display:false}, tooltip:{callbacks:{label:ctx=>` ${ctx.label}: ${ctx.parsed}`}} }
+      responsive: true, maintainAspectRatio: false, cutout: '60%',
+      plugins: { legend: {display:false}, tooltip: { callbacks: { label: ctx => ' ' + ctx.label + ': ' + ctx.parsed } } }
     }
   });
-}
-
-function buildBranchLegend(branchEntries, branchTotal) {
-  const el = document.getElementById('branchLegend');
-  if (!el) return;
-  el.innerHTML = branchEntries.map(([b,v],i) =>
-    `<div class="legend-item">
-      <div class="legend-dot" style="background:${BRANCH_COLORS[i]||'#ccc'}"></div>
-      ${escHtml(b.replace('Al Hudu ',''))}: ${Math.round((v/branchTotal)*100)}%
-    </div>`
-  ).join('');
 }
