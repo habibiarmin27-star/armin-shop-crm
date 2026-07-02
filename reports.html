@@ -77,7 +77,35 @@
   background:var(--accent); color:var(--accent-text); border-color:var(--accent);
 }
 
-/* Time toggle */
+/* 4-col stat grid on wider screens */
+@media(min-width:460px){ .trend-grid{ grid-template-columns:repeat(4,1fr); } }
+
+/* Daily branch pills */
+.branch-pills{ display:flex; gap:6px; margin-bottom:12px; flex-wrap:wrap; }
+.branch-pill{
+  padding:6px 13px; border-radius:20px; font-size:11.5px; font-weight:700;
+  background:var(--surface); color:var(--text-dim); border:1px solid var(--border);
+  cursor:pointer; font-family:inherit;
+}
+.branch-pill.active{ background:var(--accent); color:var(--accent-text); border-color:var(--accent); }
+
+/* Daily table */
+.daily-table{ background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; }
+.daily-table .t-head{
+  display:grid; grid-template-columns:1.2fr 1fr 1fr 1fr;
+  padding:9px 14px; font-size:10px; font-weight:800;
+  color:var(--text-dim); border-bottom:1px solid var(--border);
+  background:var(--surface-2);
+}
+.daily-table .t-row{
+  display:grid; grid-template-columns:1.2fr 1fr 1fr 1fr;
+  padding:10px 14px; font-size:12px; border-bottom:1px solid var(--border);
+}
+.daily-table .t-row:last-child{ border-bottom:none; }
+.daily-table .t-row:nth-child(even){ background:rgba(250,245,236,.5); }
+.daily-table .date-col{ font-size:11px; color:var(--text-dim); }
+.daily-table .d-amt{ font-weight:700; }
+.daily-table .d-total{ font-weight:800; color:var(--accent); }
 .time-toggle{
   display:flex; background:var(--surface-2); border-radius:8px;
   padding:3px; gap:3px; margin-bottom:14px; border:1px solid var(--border);
