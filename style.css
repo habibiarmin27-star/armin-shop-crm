@@ -449,3 +449,28 @@ button{
 }
 .reminder-actions .wa-btn{ background:rgba(62,142,92,.1); color:var(--up); border:1px solid rgba(62,142,92,.3); }
 .reminder-actions .mail-btn{ background:var(--surface-2); color:var(--text); border:1px solid var(--border); }
+
+/* Role badge */
+.role-badge{ font-size:10px; font-weight:800; padding:3px 9px; border-radius:6px; }
+.role-badge.admin{ background:rgba(140,94,150,.15); color:var(--vip); }
+.role-badge.staff{ background:var(--accent-soft); color:var(--accent); }
+
+/* Quick access grid */
+.quick-grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:18px; }
+.quick-card{
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+  padding:15px 14px; display:flex; flex-direction:column; align-items:flex-start; gap:7px;
+  cursor:pointer; text-decoration:none; color:var(--text);
+}
+.quick-card:active{ border-color:var(--accent); }
+.quick-card .icon{ font-size:23px; line-height:1; }
+.quick-card .q-title{ font-size:13.5px; font-weight:800; }
+.quick-card .q-sub{ font-size:11px; color:var(--text-dim); }
+.quick-card.highlight{ background:var(--accent); border-color:var(--accent); }
+.quick-card.highlight .q-title, .quick-card.highlight .q-sub{ color:var(--accent-text); }
+
+/* Locked info line on staff customer view */
+.locked-info{
+  display:flex; align-items:center; gap:5px; font-size:11px;
+  color:var(--text-dim); margin-top:6px; font-style:italic;
+}

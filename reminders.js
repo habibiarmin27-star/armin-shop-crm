@@ -1,6 +1,6 @@
 // reminders.js
 import { db } from "./firebase-init.js";
-import { requireAuth } from "./auth-guard.js";
+import { requireAdmin } from "./auth-guard.js";
 import {
   INACTIVITY_DAYS, BIRTHDAY_VOUCHER_DISCOUNT, BIRTHDAY_VOUCHER_VALID_DAYS,
   thankYouMessage, birthdayMessage, missYouMessage
@@ -13,7 +13,7 @@ import {
 
 let allCustomers = [];
 
-requireAuth(() => {
+requireAdmin(() => {
   loadReminders();
 });
 

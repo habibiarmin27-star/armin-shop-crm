@@ -10,11 +10,15 @@
 
 <div class="app-bar">
   <h1>Customers</h1>
-  <button id="hamburgerBtn" class="hamburger">☰</button>
+  <div style="display:flex; gap:8px; align-items:center;">
+    <span id="roleBadge"></span>
+    <button id="hamburgerBtn" class="hamburger">☰</button>
+  </div>
 </div>
 
 <div class="container">
   <div class="dash-stats" id="statsArea"></div>
+  <div id="quickAccess"></div>
 
   <input type="text" id="searchInput" class="search-box" placeholder="Search by name or phone...">
 

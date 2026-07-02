@@ -1,7 +1,6 @@
 // reports.js
 import { db } from "./firebase-init.js";
-import { requireAuth } from "./auth-guard.js";
-import { MANAGER_EMAILS } from "./manager-config.js";
+import { requireAdmin } from "./auth-guard.js";
 import { getCustomerLevel, getThreeMonthTotal } from "./levels-config.js";
 import { BRANCHES } from "./branches-config.js";
 import { collection, collectionGroup, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -22,8 +21,7 @@ let activeTime   = 'monthly';
 let activeDailyBranch = 'all';
 let barChartInstance = null;
 
-requireAuth((user) => {
-  if (!MANAGER_EMAILS.includes(user.email)) { window.location.href = "dashboard.html"; return; }
+requireAdmin(() => {
   loadReport();
 });
 

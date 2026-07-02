@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Staff Management | Shop CRM</title>
+<link rel="stylesheet" href="style.css">
+<style>
+.staff-table{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:14px;}
+.staff-table .t-head{display:grid;grid-template-columns:1.5fr .7fr .8fr;padding:10px 14px;font-size:10px;font-weight:800;color:var(--text-dim);border-bottom:1px solid var(--border);background:var(--surface-2);}
+.staff-table .t-row{display:grid;grid-template-columns:1.5fr .7fr .8fr;padding:11px 14px;font-size:12px;border-bottom:1px solid var(--border);align-items:center;}
+.staff-table .t-row:last-child{border-bottom:none;}
+.s-email{font-weight:600;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.role-pill{font-size:10px;padding:3px 8px;border-radius:6px;font-weight:800;display:inline-block;}
+.role-pill.admin{background:rgba(140,94,150,.14);color:var(--vip);}
+.role-pill.staff{background:var(--surface-2);color:var(--text-dim);}
+.s-action{font-size:10px;padding:5px 9px;border-radius:6px;border:1px solid var(--border);background:none;color:var(--text-dim);cursor:pointer;font-family:inherit;font-weight:700;}
+.s-action.danger{border-color:var(--down);color:var(--down);}
+.activity-row{padding:10px 0;border-bottom:1px solid var(--border);}
+.activity-row:last-child{border-bottom:none;}
+.activity-row .a-title{font-size:12.5px;font-weight:600;}
+.activity-row .a-meta{font-size:11px;color:var(--text-dim);margin-top:2px;}
+</style>
+</head>
+<body>
+
+<div class="app-bar">
+  <a href="dashboard.html" class="back">‹ Back</a>
+  <h1>Staff Management</h1>
+  <span></span>
+</div>
+
+<div class="container">
+  <div id="staffError" class="error-msg"></div>
+  <div id="staffSuccess" class="success-msg"></div>
+
+  <div class="section-title">Team Members</div>
+  <div id="staffList"><div class="loading">Loading...</div></div>
+
+  <button class="btn" id="openAddStaffBtn" style="margin-top:6px;">+ Add Staff Member</button>
+
+  <div class="section-title">Recent Staff Activity</div>
+  <div class="card" id="activityList"><div class="loading">Loading...</div></div>
+</div>
+
+<!-- Add staff sheet -->
+<div class="overlay" id="addStaffOverlay">
+  <div class="sheet">
+    <h2>Add Staff Member</h2>
+    <div id="addStaffError" class="error-msg"></div>
+    <div class="muted" style="margin-bottom:14px;">
+      First create their login (email + password) in Firebase Console → Authentication, then add the same email here.
+    </div>
+    <label>Email *</label>
+    <input type="email" id="st_email" placeholder="staff@alhudu.ae">
+    <label>Role *</label>
+    <select id="st_role">
+      <option value="staff">Staff</option>
+      <option value="admin">Admin</option>
+    </select>
+    <button class="btn" id="saveStaffBtn">Add Member</button>
+    <button type="button" class="btn secondary" id="cancelAddStaffBtn" style="margin-top:10px;">Cancel</button>
+  </div>
+</div>
+
+<script type="module" src="auth-guard.js"></script>
+<script type="module" src="staff.js"></script>
+</body>
+</html>

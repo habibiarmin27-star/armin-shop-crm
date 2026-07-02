@@ -67,6 +67,31 @@
   </div>
 </div>
 
+<!-- Edit basic info sheet -->
+<div class="overlay" id="editOverlay">
+  <div class="sheet">
+    <h2>Edit Customer Info</h2>
+    <div id="editError" class="error-msg"></div>
+    <div id="editSuccess" class="success-msg"></div>
+    <form id="editForm">
+      <label>Name *</label>
+      <input type="text" id="e_name" required>
+
+      <label>Phone Number</label>
+      <input type="tel" id="e_phone" placeholder="+971...">
+
+      <label>Email</label>
+      <input type="email" id="e_email">
+
+      <label>Birthday</label>
+      <input type="date" id="e_birthday">
+
+      <button type="submit" class="btn">Save Changes</button>
+      <button type="button" class="btn secondary" id="cancelEditBtn" style="margin-top:10px;">Cancel</button>
+    </form>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
 <script type="module" src="auth-guard.js"></script>
 <script type="module" src="customer.js"></script>
