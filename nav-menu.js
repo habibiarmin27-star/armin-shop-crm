@@ -10,7 +10,6 @@ function buildPanel(role) {
 
   const adminLinks =
     '<a href="reports.html" class="nav-link">📊 Manager Reports</a>' +
-    '<a href="reminders.html" class="nav-link">🔔 Reminders</a>' +
     '<a href="staff.html" class="nav-link">👤 Staff Management</a>';
 
   const overlay = document.createElement("div");
@@ -20,6 +19,7 @@ function buildPanel(role) {
     '<div class="nav-panel">' +
       '<div class="nav-panel-head"><span>Menu</span><button id="navCloseBtn" class="nav-close">✕</button></div>' +
       '<a href="dashboard.html" class="nav-link">🏠 Dashboard</a>' +
+      '<a href="reminders.html" class="nav-link">🔔 Reminders</a>' +
       '<a href="scan.html" class="nav-link">📷 Scan Voucher</a>' +
       (isAdmin ? adminLinks : '') +
       '<button data-logout class="nav-link nav-logout">🚪 Sign Out</button>' +
