@@ -30,8 +30,8 @@ async function loadAll() {
   await loadCustomer();
   if (userRole === "admin") {
     await loadPurchases();
-    await loadVouchers();
   }
+  await loadVouchers();
 }
 
 async function loadCustomer() {
@@ -83,7 +83,8 @@ function renderInfo() {
     document.getElementById("deleteCustBtn").addEventListener("click", deleteCustomer);
 
   } else {
-    // Staff — limited view: points/balance + contact, edit basic info, no totals/vouchers/history/delete
+    // Staff — limited view: points/balance + contact, edit basic info + redeem + vouchers,
+    // but no lifetime totals or purchase history
     document.getElementById("infoCard").innerHTML = `
       <div class="stat-grid">
         <div class="stat-box"><div class="num">${pts}</div><div class="lbl">Points</div></div>
@@ -94,12 +95,17 @@ function renderInfo() {
         ✉️ ${escapeHtml(customerData.email || "—")}<br>
         🎂 ${escapeHtml(customerData.birthday || "—")}
       </div>
-      <div class="locked-info" style="margin-top:12px;">🔒 Sales total, vouchers & history — Admin only</div>
-      <button class="btn secondary" id="openEditBtn" style="margin-top:14px;">✏️ Edit Info</button>
+      <div class="locked-info" style="margin-top:12px;">🔒 Sales total & purchase history — Admin only</div>
+      <div style="display:flex; gap:8px; margin-top:14px;">
+        <button class="btn secondary" id="openEditBtn" style="flex:1;">✏️ Edit Info</button>
+        <button class="btn secondary" id="openRedeemBtn" style="flex:1;" ${pts < 10 ? "disabled" : ""}>🎁 Redeem (${bal} AED)</button>
+      </div>
     `;
     document.getElementById("openEditBtn").addEventListener("click", openEditSheet);
+    const redeemBtn = document.getElementById("openRedeemBtn");
+    if (redeemBtn) redeemBtn.addEventListener("click", openRedeemSheet);
 
-    // Hide the purchase-history and vouchers sections for staff
+    // Hide only the purchase-history section for staff; vouchers stay visible
     hideAdminSections();
   }
 }
@@ -107,12 +113,10 @@ function renderInfo() {
 function hideAdminSections() {
   document.querySelectorAll(".section-title").forEach(el => {
     const t = el.textContent.trim();
-    if (t === "Purchase History" || t === "Vouchers") el.style.display = "none";
+    if (t === "Purchase History") el.style.display = "none";
   });
   const pl = document.getElementById("purchaseList");
-  const vl = document.getElementById("voucherList");
   if (pl) pl.style.display = "none";
-  if (vl) vl.style.display = "none";
 }
 
 async function loadPurchases() {
@@ -164,7 +168,9 @@ async function loadVouchers() {
     const badgeLabel = status === "active" ? "Active" : status === "used" ? "Used" : "Expired";
     const expiry = expiresMs ? new Date(expiresMs).toLocaleDateString("en-GB") : "—";
     const barcodeBlock = status === "active"
-      ? `<div class="barcode-box"><svg id="bc_${v.id}"></svg></div><div class="voucher-code-text">${v.code}</div>` : "";
+      ? `<div class="barcode-box"><svg id="bc_${v.id}"></svg></div><div class="voucher-code-text">${v.code}</div>
+         <button class="btn secondary" data-mark-used="${v.id}" style="margin-top:8px;">✅ Mark as Used</button>`
+      : "";
     return `
       <div style="padding:12px 0; border-bottom:1px solid var(--border);">
         <div class="voucher-row" style="border-bottom:none; padding:0 0 6px;">
@@ -183,6 +189,32 @@ async function loadVouchers() {
       catch (e) { console.error(e); }
     }
   });
+
+  listEl.querySelectorAll("[data-mark-used]").forEach((btn) => {
+    btn.addEventListener("click", () => markVoucherUsed(btn.dataset.markUsed, btn));
+  });
+}
+
+async function markVoucherUsed(voucherId, btn) {
+  const confirmed = window.confirm("Mark this voucher as used? This cannot be undone.");
+  if (!confirmed) return;
+
+  btn.disabled = true;
+  btn.textContent = "Applying...";
+
+  try {
+    await updateDoc(doc(db, "vouchers", voucherId), { status: "used", usedAt: serverTimestamp() });
+    await updateDoc(doc(db, "customers", customerId), {
+      activeVoucherCount: Math.max(0, (customerData.activeVoucherCount || 1) - 1),
+    });
+    logActivity(`Voucher used — ${customerData.name || "Unnamed"}`, "");
+    loadAll();
+  } catch (err) {
+    btn.disabled = false;
+    btn.textContent = "✅ Mark as Used";
+    alert("Failed to update the voucher. Please try again.");
+    console.error(err);
+  }
 }
 
 // ---- Add purchase ----
@@ -315,6 +347,7 @@ document.getElementById("confirmRedeemBtn").addEventListener("click", async () =
 
     sucEl.textContent = `✅ ${pts} points redeemed for ${discountAED} AED voucher!`;
     sucEl.classList.add("show");
+    logActivity(`Points redeemed — ${customerData.name || "Unnamed"} (${pts} pts → ${discountAED} AED)`, "");
     setTimeout(() => { redeemOverlay.classList.remove("show"); loadAll(); }, 1400);
   } catch (err) {
     errEl.textContent = "Failed to redeem points."; errEl.classList.add("show"); console.error(err);
