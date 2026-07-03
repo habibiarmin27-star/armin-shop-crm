@@ -20,6 +20,20 @@
 .activity-row:last-child{border-bottom:none;}
 .activity-row .a-title{font-size:12.5px;font-weight:600;}
 .activity-row .a-meta{font-size:11px;color:var(--text-dim);margin-top:2px;}
+.activity-row .a-branch{
+  font-size:9.5px;font-weight:800;padding:2px 7px;border-radius:5px;
+  display:inline-block;margin-top:4px;
+}
+.a-branch.dubai{background:var(--accent-soft);color:var(--accent);}
+.a-branch.abudhabi{background:rgba(201,162,122,.2);color:#9C6A3E;}
+
+.filter-bar{ display:flex; gap:6px; margin-bottom:12px; flex-wrap:wrap; }
+.filter-tab{
+  padding:7px 14px; border-radius:20px; font-size:12px; font-weight:700;
+  background:var(--surface); color:var(--text-dim); border:1px solid var(--border);
+  cursor:pointer; font-family:inherit;
+}
+.filter-tab.active{ background:var(--accent); color:var(--accent-text); border-color:var(--accent); }
 </style>
 </head>
 <body>
@@ -40,6 +54,11 @@
   <button class="btn" id="openAddStaffBtn" style="margin-top:6px;">+ Add Staff Member</button>
 
   <div class="section-title">Recent Staff Activity</div>
+  <div class="filter-bar" id="activityFilterBar">
+    <button class="filter-tab active" data-branch="all">All</button>
+    <button class="filter-tab" data-branch="Al Hudu Abu Dhabi">Abu Dhabi</button>
+    <button class="filter-tab" data-branch="Al Hudu Dubai">Dubai</button>
+  </div>
   <div class="card" id="activityList"><div class="loading">Loading...</div></div>
 </div>
 
