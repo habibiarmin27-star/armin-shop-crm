@@ -1,5 +1,5 @@
 // customer.js
-import { db } from "./firebase-init.js";
+import { db, auth } from "./firebase-init.js";
 import { requireAuth } from "./auth-guard.js";
 import { getTierForPurchase, generateVoucherCode, VOUCHER_VALID_DAYS } from "./voucher-config.js";
 import { BRANCHES } from "./branches-config.js";
@@ -244,6 +244,13 @@ document.getElementById("purchaseForm").addEventListener("submit", async (e) => 
       ? `Purchase recorded! Voucher issued 🎉${ptsMsg}`
       : `Purchase recorded.${ptsMsg}`;
     successBox.classList.add("show");
+
+    // Log this action for Staff Management's activity feed
+    logActivity(
+      `Purchase recorded — ${customerData.name || "Unnamed"} (${amount} AED)`,
+      branch
+    );
+
     setTimeout(() => { purchaseOverlay.classList.remove("show"); successBox.classList.remove("show"); loadAll(); }, 1400);
 
   } catch (err) {
@@ -372,4 +379,18 @@ async function deleteCustomer() {
 function escapeHtml(str) {
   return String(str).replace(/[&<>"']/g, (m) =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
+}
+
+// Writes a row to the "activity" collection for Staff Management's log.
+async function logActivity(action, branch) {
+  try {
+    await addDoc(collection(db, "activity"), {
+      action,
+      by: auth.currentUser ? auth.currentUser.email : "unknown",
+      branch: branch || "",
+      at: serverTimestamp(),
+    });
+  } catch (err) {
+    console.error("Failed to log activity", err);
+  }
 }
