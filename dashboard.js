@@ -1,5 +1,5 @@
 // dashboard.js
-import { db } from "./firebase-init.js";
+import { db, auth } from "./firebase-init.js";
 import { requireAuth } from "./auth-guard.js";
 import { getCustomerLevel, getThreeMonthTotal } from "./levels-config.js";
 import { pointsToAED } from "./points-config.js";
@@ -157,6 +157,7 @@ document.getElementById("addForm").addEventListener("submit", async (e) => {
     });
     document.getElementById("addForm").reset();
     addOverlay.classList.remove("show");
+    logActivity(`New customer added — ${name}`);
     loadCustomers();
     if (userRole === "admin") loadStats();
   } catch (err) {
@@ -165,6 +166,21 @@ document.getElementById("addForm").addEventListener("submit", async (e) => {
     console.error(err);
   }
 });
+
+// Writes a row to the "activity" collection for Staff Management's log.
+// No branch is known yet at customer-creation time (branch is picked per purchase).
+async function logActivity(action) {
+  try {
+    await addDoc(collection(db, "activity"), {
+      action,
+      by: auth.currentUser ? auth.currentUser.email : "unknown",
+      branch: "",
+      at: serverTimestamp(),
+    });
+  } catch (err) {
+    console.error("Failed to log activity", err);
+  }
+}
 
 function esc(str) {
   return String(str).replace(/[&<>"']/g, m =>
