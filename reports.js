@@ -3,7 +3,9 @@ import { db } from "./firebase-init.js";
 import { requireAdmin } from "./auth-guard.js";
 import { getCustomerLevel, getThreeMonthTotal } from "./levels-config.js";
 import { BRANCHES } from "./branches-config.js";
-import { collection, collectionGroup, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import {
+  collection, collectionGroup, getDocs, query, where, doc, getDoc, setDoc
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const ACCENT  = '#7A4E2A';
 const ACCENT2 = '#C9A27A';
@@ -16,6 +18,7 @@ Chart.defaults.color = '#8A7860';
 
 let allPurchases = [];
 let allCustomers = [];
+let branchTotalsAllTime = {};
 let activeBranch = 'all';
 let activeTime   = 'monthly';
 let activeDailyBranch = 'all';
@@ -28,12 +31,23 @@ requireAdmin(() => {
 async function loadReport() {
   const area = document.getElementById("reportArea");
   try {
-    const [pSnap, cSnap] = await Promise.all([
-      getDocs(collectionGroup(db, "purchases")),
+    // Every chart on this page (monthly/weekly/daily) only ever shows the
+    // last 6 months at most, so we only fetch that much data — no matter
+    // how far back the shop's full history goes, this read stays a fixed,
+    // predictable size instead of growing forever.
+    const cutoff = new Date();
+    cutoff.setMonth(cutoff.getMonth() - 6);
+    cutoff.setDate(1);
+    const cutoffStr = cutoff.toISOString().slice(0, 10);
+
+    const [pSnap, cSnap, statsSnap] = await Promise.all([
+      getDocs(query(collectionGroup(db, "purchases"), where("date", ">=", cutoffStr))),
       getDocs(collection(db, "customers")),
+      getDoc(doc(db, "stats", "branchTotals")),
     ]);
     allPurchases = pSnap.docs.map(d => d.data());
     allCustomers = cSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    branchTotalsAllTime = statsSnap.exists() ? statsSnap.data() : {};
     renderAll(area);
   } catch (err) {
     area.innerHTML = '<div class="empty-state">Failed to load report</div>';
@@ -125,13 +139,10 @@ function renderAll(area) {
     return lv && lv.name === 'VIP';
   }).length;
 
-  // Branch sales all-time
-  const branchSales = {};
-  allPurchases.forEach(p => {
-    if (p.branch) branchSales[p.branch] = (branchSales[p.branch] || 0) + (p.amount || 0);
-  });
-  const branchEntries = Object.entries(branchSales).sort((a,b) => b[1]-a[1]);
-  const branchTotal   = branchEntries.reduce((s, e2) => s + e2[1], 0);
+  // Branch sales all-time — read from the aggregate doc kept up to date at
+  // purchase-time, instead of re-scanning every purchase ever recorded.
+  const branchEntries = Object.entries(branchTotalsAllTime).sort((a,b) => b[1]-a[1]);
+  const branchTotal   = branchEntries.reduce((s, e2) => s + e2[1], 0) || 1;
 
   // Per-branch this/last month
   const branchThisM = {}, branchLastM = {};
@@ -230,7 +241,9 @@ function renderAll(area) {
     '<div class="duo-grid">' +
       '<div class="mini-chart-card"><div class="chart-title">Branch Sales</div>' +
         '<div class="mini-wrap"><canvas id="donutChart"></canvas></div>' +
-        '<div class="legend" id="branchLegend"></div></div>' +
+        '<div class="legend" id="branchLegend"></div>' +
+        '<button id="recalcBranchBtn" style="margin-top:10px; background:none; border:none; color:var(--text-dim); font-size:10px; text-decoration:underline; cursor:pointer; font-family:inherit; padding:0;">Recalculate from full history</button>' +
+      '</div>' +
       '<div class="mini-chart-card"><div class="chart-title">Customer Levels</div>' +
         '<div class="mini-wrap"><canvas id="pieChart"></canvas></div>' +
         '<div class="legend">' +
@@ -274,6 +287,9 @@ function renderAll(area) {
   area.querySelectorAll('[data-daily-branch]').forEach(btn => {
     btn.addEventListener('click', () => { activeDailyBranch = btn.dataset.dailyBranch; renderAll(area); });
   });
+
+  const recalcBtn = document.getElementById('recalcBranchBtn');
+  if (recalcBtn) recalcBtn.addEventListener('click', () => recalculateBranchTotals(recalcBtn));
 }
 
 function buildBarChart(fp) {
@@ -440,4 +456,32 @@ function buildPieChart(lvc) {
       plugins: { legend: {display:false}, tooltip: { callbacks: { label: ctx => ' ' + ctx.label + ': ' + ctx.parsed } } }
     }
   });
+}
+
+// One-time (or occasional) full historical scan to rebuild the branch-totals
+// aggregate doc from scratch. Normally the aggregate is kept current
+// automatically at purchase-time (see customer.js), so this is only needed
+// once — e.g. right after this feature was added, to backfill totals from
+// purchases recorded before the aggregate existed.
+async function recalculateBranchTotals(btn) {
+  const originalText = btn.textContent;
+  btn.textContent = 'Recalculating...';
+  btn.disabled = true;
+  try {
+    const snap = await getDocs(collectionGroup(db, 'purchases'));
+    const totals = {};
+    snap.docs.forEach(d => {
+      const p = d.data();
+      if (p.branch) totals[p.branch] = (totals[p.branch] || 0) + (p.amount || 0);
+    });
+    await setDoc(doc(db, 'stats', 'branchTotals'), totals);
+    branchTotalsAllTime = totals;
+    btn.textContent = '✅ Done — refreshing...';
+    setTimeout(() => loadReport(), 800);
+  } catch (err) {
+    btn.textContent = originalText;
+    btn.disabled = false;
+    alert('Failed to recalculate. Please try again.');
+    console.error(err);
+  }
 }
