@@ -4,7 +4,7 @@ import { requireAuth } from "./auth-guard.js";
 import { getCustomerLevel, getThreeMonthTotal } from "./levels-config.js";
 import { pointsToAED } from "./points-config.js";
 import {
-  collection, collectionGroup, getDocs, addDoc, serverTimestamp, query, orderBy
+  collection, getDocs, addDoc, serverTimestamp, query, orderBy
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 let allCustomers = [];
@@ -69,12 +69,17 @@ async function loadCustomers() {
 async function loadStats() {
   const statsArea = document.getElementById("statsArea");
   try {
-    const purchasesSnap = await getDocs(collectionGroup(db, "purchases"));
-    const purchases = purchasesSnap.docs.map(d => d.data());
+    // "Sales This Month" is derived from each customer's monthlySpend map —
+    // a running total already kept up to date at purchase-time. This avoids
+    // reading every purchase document just to add up one month's total,
+    // which would get slower and slower as the shop's history grows.
     const now = new Date();
     const thisMonthKey = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0');
-    const thisMonthSales = purchases.filter(p => (p.date||'').startsWith(thisMonthKey))
-      .reduce((s,p) => s + (p.amount||0), 0);
+    const thisMonthSales = allCustomers.reduce((s,c) => {
+      const spend = c.monthlySpend && c.monthlySpend[thisMonthKey] ? c.monthlySpend[thisMonthKey] : 0;
+      return s + spend;
+    }, 0);
+
     const totalCustomers = allCustomers.length;
     const activeVouchers = allCustomers.reduce((s,c) => s + (c.activeVoucherCount||0), 0);
     const vipCount = allCustomers.filter(c => {
