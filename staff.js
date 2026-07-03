@@ -56,25 +56,48 @@ async function toggleActive(email, currentlyActive) {
   }
 }
 
+let allActivity = [];
+
 async function loadActivity() {
   const el = document.getElementById("activityList");
   try {
-    const snap = await getDocs(query(collection(db, "activity"), orderBy("at", "desc"), limit(20)));
-    if (snap.empty) {
-      el.innerHTML = '<div class="empty-state">No recent activity</div>';
-      return;
-    }
-    el.innerHTML = snap.docs.map(d => {
-      const a = d.data();
-      const when = a.at?.seconds ? timeAgo(a.at.seconds * 1000) : "";
-      return '<div class="activity-row"><div class="a-title">' + esc(a.action||'Activity') + '</div>' +
-        '<div class="a-meta">By: ' + esc(a.by||'—') + (a.detail ? ' · ' + esc(a.detail) : '') + ' · ' + when + '</div></div>';
-    }).join("");
+    const snap = await getDocs(query(collection(db, "activity"), orderBy("at", "desc"), limit(50)));
+    allActivity = snap.docs.map(d => d.data());
+    renderActivity("all");
   } catch (err) {
     el.innerHTML = '<div class="empty-state">No activity log yet</div>';
     console.error(err);
   }
 }
+
+function renderActivity(branchFilter) {
+  const el = document.getElementById("activityList");
+  const filtered = branchFilter === "all"
+    ? allActivity
+    : allActivity.filter(a => a.branch === branchFilter);
+
+  if (filtered.length === 0) {
+    el.innerHTML = '<div class="empty-state">No activity for this branch yet</div>';
+    return;
+  }
+
+  el.innerHTML = filtered.map(a => {
+    const when = a.at?.seconds ? timeAgo(a.at.seconds * 1000) : "";
+    const branchBadge = a.branch
+      ? '<span class="a-branch ' + (a.branch.includes('Dubai') ? 'dubai' : 'abudhabi') + '">' + esc(a.branch.replace('Al Hudu ','')) + '</span>'
+      : "";
+    return '<div class="activity-row"><div class="a-title">' + esc(a.action||'Activity') + '</div>' +
+      '<div class="a-meta">By: ' + esc(a.by||'—') + ' · ' + when + '</div>' + branchBadge + '</div>';
+  }).join("");
+}
+
+document.getElementById("activityFilterBar").addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-branch]");
+  if (!btn) return;
+  document.querySelectorAll("#activityFilterBar .filter-tab").forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+  renderActivity(btn.dataset.branch);
+});
 
 function timeAgo(ms) {
   const diff = Date.now() - ms;
