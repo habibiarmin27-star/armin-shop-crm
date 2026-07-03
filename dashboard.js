@@ -42,6 +42,7 @@ function renderRoleUI() {
         '<div class="section-title">Quick Access</div>' +
         '<div class="quick-grid">' +
           '<a class="quick-card highlight" href="scan.html"><span class="icon">📷</span><span class="q-title">Scan Voucher</span><span class="q-sub">Apply discount</span></a>' +
+          '<a class="quick-card" href="reminders.html"><span class="icon">🔔</span><span class="q-title">Reminders</span><span class="q-sub">Birthdays & inactive</span></a>' +
         '</div>';
     }
   }
