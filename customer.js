@@ -6,7 +6,7 @@ import { BRANCHES } from "./branches-config.js";
 import { getCustomerLevel, getThreeMonthTotal, getMonthKeyFromDateStr } from "./levels-config.js";
 import { calculatePoints, pointsToAED } from "./points-config.js";
 import {
-  doc, getDoc, updateDoc, deleteDoc, collection, addDoc, getDocs, query, orderBy,
+  doc, getDoc, setDoc, updateDoc, deleteDoc, collection, addDoc, getDocs, query, orderBy,
   serverTimestamp, Timestamp, where, increment
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
@@ -182,6 +182,16 @@ async function loadVouchers() {
       </div>`;
   }).join("");
 
+  // Only fetch the barcode library if it's actually needed — most
+  // vouchers on a given profile are "used" or "expired" and never render one.
+  const hasActiveVoucher = vouchers.some((v) => {
+    const expiresMs = v.expiresAt?.seconds ? v.expiresAt.seconds * 1000 : 0;
+    return v.status === "active" && !(expiresMs && expiresMs < now);
+  });
+  if (hasActiveVoucher) {
+    await loadBarcodeLib();
+  }
+
   vouchers.forEach((v) => {
     const expiresMs = v.expiresAt?.seconds ? v.expiresAt.seconds * 1000 : 0;
     if (v.status === "active" && !(expiresMs && expiresMs < now) && window.JsBarcode) {
@@ -193,6 +203,22 @@ async function loadVouchers() {
   listEl.querySelectorAll("[data-mark-used]").forEach((btn) => {
     btn.addEventListener("click", () => markVoucherUsed(btn.dataset.markUsed, btn));
   });
+}
+
+// Loads the JsBarcode library from CDN on demand (only once per page load).
+let barcodeLibPromise = null;
+function loadBarcodeLib() {
+  if (window.JsBarcode) return Promise.resolve();
+  if (barcodeLibPromise) return barcodeLibPromise;
+
+  barcodeLibPromise = new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = "https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js";
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("Failed to load barcode library"));
+    document.head.appendChild(script);
+  });
+  return barcodeLibPromise;
 }
 
 async function markVoucherUsed(voucherId, btn) {
@@ -269,6 +295,11 @@ document.getElementById("purchaseForm").addEventListener("submit", async (e) => 
       branchCounts: newBranchCounts, topBranch, lastPurchaseDate: date,
       totalPoints: increment(pointsEarned),
     });
+
+    // Keep a site-wide running total per branch (used by the Reports page's
+    // all-time "Branch Sales" chart) so that chart never has to re-scan
+    // every purchase in the shop's history — it just reads one small doc.
+    updateBranchTotal(branch, amount);
 
     document.getElementById("purchaseForm").reset();
     const ptsMsg = pointsEarned > 0 ? ` +${pointsEarned} pts earned.` : "";
@@ -425,5 +456,17 @@ async function logActivity(action, branch) {
     });
   } catch (err) {
     console.error("Failed to log activity", err);
+  }
+}
+
+// Keeps a single site-wide document with a running lifetime total per
+// branch, updated incrementally on every purchase. This lets the Reports
+// page show accurate all-time branch totals by reading ONE document,
+// instead of re-reading every purchase ever recorded.
+async function updateBranchTotal(branch, amount) {
+  try {
+    await setDoc(doc(db, "stats", "branchTotals"), { [branch]: increment(amount) }, { merge: true });
+  } catch (err) {
+    console.error("Failed to update branch totals", err);
   }
 }
