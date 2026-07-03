@@ -13,6 +13,7 @@
     <div class="logo">Shop CRM</div>
     <div class="sub">Staff Sign In</div>
 
+    <div id="blockedBox" class="error-msg"></div>
     <div id="errorBox" class="error-msg"></div>
 
     <form id="loginForm">
@@ -35,6 +36,12 @@
   onAuthStateChanged(auth, (user) => {
     if (user) window.location.href = "dashboard.html";
   });
+
+  if (new URLSearchParams(window.location.search).get("blocked") === "1") {
+    const blockedBox = document.getElementById("blockedBox");
+    blockedBox.textContent = "This account is not active. Please contact your admin.";
+    blockedBox.classList.add("show");
+  }
 
   const form = document.getElementById("loginForm");
   const errorBox = document.getElementById("errorBox");
