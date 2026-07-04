@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>History | Shop CRM</title>
+<link rel="stylesheet" href="style.css">
+<style>
+.date-picker-row{ display:flex; gap:8px; margin-bottom:18px; }
+.date-picker-row input{ margin-bottom:0; flex:1; }
+.date-picker-row button{ width:auto; padding:0 20px; white-space:nowrap; }
+
+.stat-row3{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:4px; }
+.stat-row3 .stat-box{ padding:12px 6px; }
+.stat-row3 .num{ font-size:16px; }
+
+.hist-row{
+  display:flex; justify-content:space-between; align-items:center;
+  padding:11px 0; border-bottom:1px solid var(--border); font-size:12.5px;
+}
+.hist-row:last-child{ border-bottom:none; }
+.hist-row .left{ display:flex; flex-direction:column; gap:2px; }
+.hist-row .title{ font-weight:700; }
+.hist-row .meta{ font-size:11px; color:var(--text-dim); }
+.hist-row .amt{ font-weight:800; color:var(--accent); white-space:nowrap; }
+</style>
+</head>
+<body>
+
+<div class="app-bar">
+  <a href="dashboard.html" class="back">‹ Back</a>
+  <h1>History</h1>
+  <span></span>
+</div>
+
+<div class="container">
+  <div class="date-picker-row">
+    <input type="date" id="dateInput">
+    <button class="btn" id="searchBtn" style="margin-top:0;">Search</button>
+  </div>
+
+  <div id="resultsArea">
+    <div class="empty-state">Pick a date to see that day's activity</div>
+  </div>
+</div>
+
+<script type="module" src="auth-guard.js"></script>
+<script type="module" src="history.js"></script>
+</body>
+</html>
