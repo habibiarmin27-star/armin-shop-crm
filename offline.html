@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="color-scheme" content="light only">
+<title>Offline | Al Hudu CRM</title>
+<link rel="stylesheet" href="style.css">
+<style>
+.offline-icon{ font-size:52px; margin-bottom:16px; }
+.offline-title{ font-size:19px; font-weight:800; color:var(--accent); margin-bottom:8px; }
+.offline-sub{ font-size:13.5px; color:var(--text-dim); line-height:1.6; margin-bottom:24px; }
+</style>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#7A4E2A">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Al Hudu">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" href="icons/icon-32.png" sizes="32x32" type="image/png">
+</head>
+<body>
+
+<div class="watermark">Al Hudu</div>
+
+<div class="center-screen">
+  <div class="card login-card" style="text-align:center;">
+    <div class="offline-icon">📡</div>
+    <div class="offline-title">You're Offline</div>
+    <div class="offline-sub">
+      Al Hudu CRM needs an internet connection to load customer data.<br>
+      Please check your Wi-Fi or mobile data and try again.
+    </div>
+    <button class="btn" onclick="window.location.reload()">Try Again</button>
+  </div>
+</div>
+
+<script src="sw-register.js"></script>
+</body>
+</html>

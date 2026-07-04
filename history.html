@@ -24,6 +24,14 @@
 .hist-row .meta{ font-size:11px; color:var(--text-dim); }
 .hist-row .amt{ font-weight:800; color:var(--accent); white-space:nowrap; }
 </style>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#7A4E2A">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Al Hudu">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" href="icons/icon-32.png" sizes="32x32" type="image/png">
 </head>
 <body>
 
@@ -48,5 +56,6 @@
 
 <script type="module" src="auth-guard.js"></script>
 <script type="module" src="history.js"></script>
+<script src="sw-register.js"></script>
 </body>
 </html>
