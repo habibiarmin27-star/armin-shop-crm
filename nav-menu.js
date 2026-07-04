@@ -10,6 +10,7 @@ function buildPanel(role) {
 
   const adminLinks =
     '<a href="reports.html" class="nav-link">📊 Manager Reports</a>' +
+    '<a href="history.html" class="nav-link">🗓 History</a>' +
     '<a href="staff.html" class="nav-link">👤 Staff Management</a>';
 
   const overlay = document.createElement("div");
