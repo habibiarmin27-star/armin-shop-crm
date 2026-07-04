@@ -7,7 +7,7 @@ import {
 } from "./reminders-config.js";
 import { generateVoucherCode } from "./voucher-config.js";
 import {
-  collection, collectionGroup, getDocs, addDoc, doc, updateDoc,
+  collection, getDocs, addDoc, doc, updateDoc,
   serverTimestamp, Timestamp
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
@@ -20,19 +20,9 @@ requireAuth(() => {
 async function loadReminders() {
   const area = document.getElementById("remindersArea");
   try {
-    const [customersSnap, purchasesSnap] = await Promise.all([
-      getDocs(collection(db, "customers")),
-      getDocs(collectionGroup(db, "purchases")),
-    ]);
-
+    const customersSnap = await getDocs(collection(db, "customers"));
     allCustomers = customersSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
-    const purchases = purchasesSnap.docs.map((d) => {
-      const ref = d.ref;
-      const customerId = ref.parent.parent ? ref.parent.parent.id : null;
-      return { ...d.data(), customerId };
-    });
-
-    renderReminders(area, purchases);
+    renderReminders(area);
   } catch (err) {
     area.innerHTML = `<div class="empty-state">Failed to load reminders</div>`;
     console.error(err);
@@ -49,7 +39,7 @@ function daysBetween(dateStr1, dateStr2) {
   return Math.floor((b - a) / (1000 * 60 * 60 * 24));
 }
 
-function renderReminders(area, purchases) {
+function renderReminders(area) {
   const today = todayStr();
   const todayMD = today.slice(5); // "MM-DD"
 
@@ -65,12 +55,11 @@ function renderReminders(area, purchases) {
   });
 
   // --- Today's purchases (thank-you) ---
-  const todayCustomerIds = [...new Set(
-    purchases.filter((p) => p.date === today && p.customerId).map((p) => p.customerId)
-  )];
-  const thankYouCustomers = todayCustomerIds
-    .map((id) => allCustomers.find((c) => c.id === id))
-    .filter(Boolean);
+  // Uses each customer's own lastPurchaseDate field (kept up to date at
+  // purchase time) instead of scanning every purchase record — this also
+  // means staff, who can't read full purchase history, can still see today's
+  // thank-you list.
+  const thankYouCustomers = allCustomers.filter((c) => c.lastPurchaseDate === today);
 
   area.innerHTML = `
     <div class="section-title">🎂 Birthdays Today</div>
