@@ -36,6 +36,7 @@ function renderRoleUI() {
           '<a class="quick-card" href="reminders.html"><span class="icon">🔔</span><span class="q-title">Reminders</span><span class="q-sub">Birthdays & inactive</span></a>' +
           '<a class="quick-card" href="scan.html"><span class="icon">📷</span><span class="q-title">Scan Voucher</span><span class="q-sub">Apply discount</span></a>' +
           '<a class="quick-card" href="staff.html"><span class="icon">👤</span><span class="q-title">Staff</span><span class="q-sub">Manage team</span></a>' +
+          '<a class="quick-card" href="history.html"><span class="icon">🗓</span><span class="q-title">History</span><span class="q-sub">Look up any day</span></a>' +
         '</div>';
     } else {
       qa.innerHTML =
