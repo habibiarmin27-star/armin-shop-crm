@@ -5,6 +5,7 @@ import { getTierForPurchase, generateVoucherCode, VOUCHER_VALID_DAYS } from "./v
 import { BRANCHES } from "./branches-config.js";
 import { getCustomerLevel, getThreeMonthTotal, getMonthKeyFromDateStr } from "./levels-config.js";
 import { calculatePoints, pointsToAED } from "./points-config.js";
+import { validateText, validateEmail, validatePhone } from "./input-guard.js";
 import {
   doc, getDoc, setDoc, updateDoc, deleteDoc, collection, addDoc, getDocs, query, orderBy,
   serverTimestamp, Timestamp, where, increment
@@ -406,12 +407,14 @@ document.getElementById("editForm").addEventListener("submit", async (e) => {
   const sucEl = document.getElementById("editSuccess");
   errEl.classList.remove("show"); sucEl.classList.remove("show");
 
-  const name = document.getElementById("e_name").value.trim();
-  const phone = document.getElementById("e_phone").value.trim();
-  const email = document.getElementById("e_email").value.trim();
+  const nameCheck = validateText(document.getElementById("e_name").value, { label: "Name", maxLength: 80, required: true });
+  const phoneCheck = validatePhone(document.getElementById("e_phone").value);
+  const emailCheck = validateEmail(document.getElementById("e_email").value);
   const birthday = document.getElementById("e_birthday").value;
 
-  if (!name) { errEl.textContent = "Name is required."; errEl.classList.add("show"); return; }
+  const failedCheck = [nameCheck, phoneCheck, emailCheck].find((c) => !c.valid);
+  if (failedCheck) { errEl.textContent = failedCheck.error; errEl.classList.add("show"); return; }
+  const name = nameCheck.value, phone = phoneCheck.value, email = emailCheck.value;
 
   try {
     await updateDoc(doc(db, "customers", customerId), { name, phone, email, birthday });
