@@ -4,6 +4,7 @@ import { requireAdmin } from "./auth-guard.js";
 import {
   collection, getDocs, doc, setDoc, updateDoc, getDoc, query, orderBy, limit, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { validateEmail } from "./input-guard.js";
 
 requireAdmin(() => {
   loadStaff();
@@ -115,11 +116,12 @@ document.getElementById("cancelAddStaffBtn").addEventListener("click", () => ove
 document.getElementById("saveStaffBtn").addEventListener("click", async () => {
   const errBox = document.getElementById("addStaffError");
   errBox.classList.remove("show");
-  const email = document.getElementById("st_email").value.trim().toLowerCase();
+  const emailCheck = validateEmail(document.getElementById("st_email").value, { required: true });
   const role = document.getElementById("st_role").value;
-  if (!email || !email.includes("@")) {
-    errBox.textContent = "Enter a valid email."; errBox.classList.add("show"); return;
+  if (!emailCheck.valid) {
+    errBox.textContent = emailCheck.error; errBox.classList.add("show"); return;
   }
+  const email = emailCheck.value;
   try {
     const existing = await getDoc(doc(db, "staff", email));
     if (existing.exists()) {
