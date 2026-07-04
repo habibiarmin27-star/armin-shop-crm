@@ -3,6 +3,7 @@ import { db, auth } from "./firebase-init.js";
 import { requireAuth } from "./auth-guard.js";
 import { getCustomerLevel, getThreeMonthTotal } from "./levels-config.js";
 import { pointsToAED } from "./points-config.js";
+import { validateText, validateEmail, validatePhone } from "./input-guard.js";
 import {
   collection, getDocs, addDoc, serverTimestamp, query, orderBy
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -150,11 +151,19 @@ document.getElementById("addForm").addEventListener("submit", async (e) => {
   e.preventDefault();
   const errorBox = document.getElementById("addError");
   errorBox.classList.remove("show");
-  const name = document.getElementById("c_name").value.trim();
-  const phone = document.getElementById("c_phone").value.trim();
-  const email = document.getElementById("c_email").value.trim();
+
+  const nameCheck = validateText(document.getElementById("c_name").value, { label: "Name", maxLength: 80, required: true });
+  const phoneCheck = validatePhone(document.getElementById("c_phone").value);
+  const emailCheck = validateEmail(document.getElementById("c_email").value);
   const birthday = document.getElementById("c_birthday").value;
-  if (!name) return;
+
+  const failedCheck = [nameCheck, phoneCheck, emailCheck].find((c) => !c.valid);
+  if (failedCheck) {
+    errorBox.textContent = failedCheck.error;
+    errorBox.classList.add("show");
+    return;
+  }
+  const name = nameCheck.value, phone = phoneCheck.value, email = emailCheck.value;
 
   try {
     await addDoc(collection(db, "customers"), {
