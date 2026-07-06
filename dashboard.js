@@ -5,7 +5,7 @@ import { getCustomerLevel, getThreeMonthTotal } from "./levels-config.js";
 import { pointsToAED } from "./points-config.js";
 import { validateText, validateEmail, validatePhone } from "./input-guard.js";
 import {
-  collection, getDocs, addDoc, serverTimestamp, query, orderBy
+  collection, collectionGroup, getDocs, addDoc, serverTimestamp, query, orderBy
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 let allCustomers = [];
@@ -39,6 +39,19 @@ function renderRoleUI() {
           '<a class="quick-card" href="staff.html"><span class="icon">👤</span><span class="q-title">Staff</span><span class="q-sub">Manage team</span></a>' +
           '<a class="quick-card" href="history.html"><span class="icon">🗓</span><span class="q-title">History</span><span class="q-sub">Look up any day</span></a>' +
         '</div>';
+
+      const exportEl = document.getElementById("exportSection");
+      if (exportEl) {
+        exportEl.innerHTML =
+          '<div class="section-title">Data Backup</div>' +
+          '<div class="card">' +
+            '<div class="muted" style="margin-bottom:12px;">Download a copy of your data as a spreadsheet (CSV) — keep it somewhere safe as a backup, or use it for accounting.</div>' +
+            '<button class="btn secondary" id="exportCustomersBtn">⬇️ Export Customers (CSV)</button>' +
+            '<button class="btn secondary" id="exportPurchasesBtn" style="margin-top:10px;">⬇️ Export All Purchases (CSV)</button>' +
+          '</div>';
+        document.getElementById("exportCustomersBtn").addEventListener("click", (e) => exportCustomersCSV(e.target));
+        document.getElementById("exportPurchasesBtn").addEventListener("click", (e) => exportPurchasesCSV(e.target));
+      }
     } else {
       qa.innerHTML =
         '<div class="section-title">Quick Access</div>' +
@@ -195,6 +208,96 @@ async function logActivity(action) {
     });
   } catch (err) {
     console.error("Failed to log activity", err);
+  }
+}
+
+// ── CSV export (data backup / accounting) ──────────────────────────────
+
+function csvEscape(val) {
+  const str = String(val === undefined || val === null ? "" : val);
+  if (str.includes(",") || str.includes('"') || str.includes("\n")) {
+    return '"' + str.replace(/"/g, '""') + '"';
+  }
+  return str;
+}
+
+function rowsToCSV(headers, rows) {
+  const lines = [headers.map(csvEscape).join(",")];
+  rows.forEach((row) => lines.push(row.map(csvEscape).join(",")));
+  return lines.join("\r\n");
+}
+
+function downloadCSV(filename, csvContent) {
+  // Leading BOM so Excel correctly detects UTF-8 (needed for Arabic names, etc.)
+  const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+async function exportCustomersCSV(btn) {
+  const original = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "Preparing...";
+  try {
+    const headers = [
+      "Name", "Phone", "Email", "Birthday", "Top Branch", "Level",
+      "Points", "Balance (AED)", "Lifetime Total (AED)", "Active Vouchers", "Created"
+    ];
+    const rows = allCustomers.map((c) => {
+      const level = getCustomerLevel(getThreeMonthTotal(c.monthlySpend));
+      const created = c.createdAt && c.createdAt.seconds
+        ? new Date(c.createdAt.seconds * 1000).toISOString().slice(0, 10) : "";
+      return [
+        c.name || "", c.phone || "", c.email || "", c.birthday || "",
+        c.topBranch || "", level ? level.name : "",
+        c.totalPoints || 0, pointsToAED(c.totalPoints || 0),
+        c.totalPurchases || 0, c.activeVoucherCount || 0, created,
+      ];
+    });
+    const csv = rowsToCSV(headers, rows);
+    const dateStamp = new Date().toISOString().slice(0, 10);
+    downloadCSV(`al-hudu-customers-${dateStamp}.csv`, csv);
+  } catch (err) {
+    alert("Failed to export customers. Please try again.");
+    console.error(err);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = original;
+  }
+}
+
+async function exportPurchasesCSV(btn) {
+  const original = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "Preparing... (this may take a moment)";
+  try {
+    const custById = {};
+    allCustomers.forEach((c) => { custById[c.id] = c.name || "Unnamed"; });
+
+    const snap = await getDocs(collectionGroup(db, "purchases"));
+    const headers = ["Date", "Customer", "Branch", "Amount (AED)"];
+    const rows = snap.docs.map((d) => {
+      const p = d.data();
+      const custId = d.ref.parent.parent ? d.ref.parent.parent.id : null;
+      const custName = custId && custById[custId] ? custById[custId] : "Unknown";
+      return [p.date || "", custName, p.branch || "", p.amount || 0];
+    }).sort((a, b) => (a[0] < b[0] ? 1 : -1)); // newest first
+
+    const csv = rowsToCSV(headers, rows);
+    const dateStamp = new Date().toISOString().slice(0, 10);
+    downloadCSV(`al-hudu-purchases-${dateStamp}.csv`, csv);
+  } catch (err) {
+    alert("Failed to export purchases. Please try again.");
+    console.error(err);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = original;
   }
 }
 
