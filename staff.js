@@ -5,6 +5,9 @@ import {
   collection, getDocs, doc, setDoc, updateDoc, getDoc, query, orderBy, limit, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { validateEmail } from "./input-guard.js";
+import { BRANCHES, shortBranchName } from "./branches-config.js";
+
+const BRANCH_BADGE_CLASSES = ["branch-0", "branch-1", "branch-2", "branch-3"];
 
 requireAdmin(() => {
   loadStaff();
@@ -61,6 +64,7 @@ let allActivity = [];
 
 async function loadActivity() {
   const el = document.getElementById("activityList");
+  buildFilterBar();
   try {
     const snap = await getDocs(query(collection(db, "activity"), orderBy("at", "desc"), limit(50)));
     allActivity = snap.docs.map(d => d.data());
@@ -69,6 +73,16 @@ async function loadActivity() {
     el.innerHTML = '<div class="empty-state">No activity log yet</div>';
     console.error(err);
   }
+}
+
+function buildFilterBar() {
+  const bar = document.getElementById("activityFilterBar");
+  if (!bar) return;
+  let html = '<button class="filter-tab active" data-branch="all">All</button>';
+  BRANCHES.forEach((b) => {
+    html += '<button class="filter-tab" data-branch="' + esc(b) + '">' + esc(shortBranchName(b)) + '</button>';
+  });
+  bar.innerHTML = html;
 }
 
 function renderActivity(branchFilter) {
@@ -84,14 +98,20 @@ function renderActivity(branchFilter) {
 
   el.innerHTML = filtered.map(a => {
     const when = a.at?.seconds ? timeAgo(a.at.seconds * 1000) : "";
-    const branchBadge = a.branch
-      ? '<span class="a-branch ' + (a.branch.includes('Dubai') ? 'dubai' : 'abudhabi') + '">' + esc(a.branch.replace('Al Hudu ','')) + '</span>'
-      : "";
+    let branchBadge = "";
+    if (a.branch) {
+      const idx = BRANCHES.indexOf(a.branch);
+      const colorClass = idx >= 0 ? BRANCH_BADGE_CLASSES[idx % BRANCH_BADGE_CLASSES.length] : "branch-0";
+      branchBadge = '<span class="a-branch ' + colorClass + '">' + esc(shortBranchName(a.branch)) + '</span>';
+    }
     return '<div class="activity-row"><div class="a-title">' + esc(a.action||'Activity') + '</div>' +
       '<div class="a-meta">By: ' + esc(a.by||'—') + ' · ' + when + '</div>' + branchBadge + '</div>';
   }).join("");
 }
 
+// The filter bar is now built dynamically in buildFilterBar(), so this
+// listener is attached once the container exists (it's an empty div at
+// page load, filled in right before this listener would ever need to fire).
 document.getElementById("activityFilterBar").addEventListener("click", (e) => {
   const btn = e.target.closest("[data-branch]");
   if (!btn) return;
