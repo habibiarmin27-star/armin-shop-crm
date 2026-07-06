@@ -4,6 +4,7 @@
 import { db } from "./firebase-init.js";
 import { requireAdmin } from "./auth-guard.js";
 import { calculatePoints } from "./points-config.js";
+import { shortBranchName } from "./branches-config.js";
 import {
   collection, collectionGroup, getDocs, query, where
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -92,7 +93,7 @@ function render(area, dateStr, data) {
   const activityLines = activities.length
     ? activities.map(a => {
         const time = a.at?.seconds ? new Date(a.at.seconds*1000).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}) : '';
-        return '<div class="hist-row"><span class="left"><span class="title">' + e(a.action||'Activity') + '</span><span class="meta">By: ' + e(a.by||'—') + (a.branch? ' · '+e(a.branch.replace('Al Hudu ','')) : '') + '</span></span><span class="meta">' + time + '</span></div>';
+        return '<div class="hist-row"><span class="left"><span class="title">' + e(a.action||'Activity') + '</span><span class="meta">By: ' + e(a.by||'—') + (a.branch? ' · '+e(shortBranchName(a.branch)) : '') + '</span></span><span class="meta">' + time + '</span></div>';
       }).join("")
     : '<div class="empty-state">No staff activity logged this day</div>';
 
