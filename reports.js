@@ -2,7 +2,7 @@
 import { db } from "./firebase-init.js";
 import { requireAdmin } from "./auth-guard.js";
 import { getCustomerLevel, getThreeMonthTotal } from "./levels-config.js";
-import { BRANCHES } from "./branches-config.js";
+import { BRANCHES, shortBranchName } from "./branches-config.js";
 import {
   collection, collectionGroup, getDocs, query, where, doc, getDoc, setDoc
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -164,12 +164,12 @@ function renderAll(area) {
   const top10 = [...allCustomers]
     .sort((a,b) => (b.totalPurchases||0) - (a.totalPurchases||0)).slice(0,10);
 
-  const branchTitle = activeBranch === 'all' ? 'All Branches' : activeBranch.replace('Al Hudu ','');
+  const branchTitle = activeBranch === 'all' ? 'All Branches' : shortBranchName(activeBranch);
 
   // Build filter tabs
   let filterTabs = '<button class="filter-tab ' + (activeBranch==='all'?'active':'') + '" data-branch="all">All Branches</button>';
   BRANCHES.forEach(b => {
-    filterTabs += '<button class="filter-tab ' + (activeBranch===b?'active':'') + '" data-branch="' + e(b) + '">' + e(b.replace('Al Hudu ','')) + '</button>';
+    filterTabs += '<button class="filter-tab ' + (activeBranch===b?'active':'') + '" data-branch="' + e(b) + '">' + e(shortBranchName(b)) + '</button>';
   });
 
   // Build per-branch cards
@@ -178,7 +178,7 @@ function renderAll(area) {
     const branch = entry[0];
     const thisB  = branchThisM[branch] || 0;
     const lastB  = branchLastM[branch] || 0;
-    const short  = branch.replace('Al Hudu ','');
+    const short  = shortBranchName(branch);
     branchCards += '<div class="trend-card">' +
       '<div class="lbl">' + e(short) + '</div>' +
       '<div class="num">' + thisB.toLocaleString('en-US') + ' <span style="font-size:11px;color:var(--text-dim)">AED</span></div>' +
@@ -232,7 +232,7 @@ function renderAll(area) {
       '</div>' +
       '<div class="branch-pills" id="dailyBranchPills" style="display:' + (activeTime==='daily'?'flex':'none') + '">' +
         '<button class="branch-pill ' + (activeDailyBranch==='all'?'active':'') + '" data-daily-branch="all">All</button>' +
-        BRANCHES.map(b => '<button class="branch-pill ' + (activeDailyBranch===b?'active':'') + '" data-daily-branch="' + e(b) + '">' + e(b.replace('Al Hudu ','')) + '</button>').join('') +
+        BRANCHES.map(b => '<button class="branch-pill ' + (activeDailyBranch===b?'active':'') + '" data-daily-branch="' + e(b) + '">' + e(shortBranchName(b)) + '</button>').join('') +
       '</div>' +
       '<div class="chart-wrap"><canvas id="barChart"></canvas></div>' +
     '</div>' +
@@ -272,7 +272,7 @@ function renderAll(area) {
   if (legendEl) {
     legendEl.innerHTML = branchEntries.map((entry, i) =>
       '<div class="legend-item"><div class="legend-dot" style="background:' + (BRANCH_COLORS[i] || '#ccc') + '"></div>' +
-      e(entry[0].replace('Al Hudu ','')) + ': ' + Math.round((entry[1]/branchTotal)*100) + '%</div>'
+      e(shortBranchName(entry[0])) + ': ' + Math.round((entry[1]/branchTotal)*100) + '%</div>'
     ).join('');
   }
 
@@ -354,7 +354,7 @@ function buildBarChart(fp) {
       BRANCHES.forEach((branch, i) => {
         const color = BRANCH_COLORS[i];
         datasets.push({
-          label: branch.replace('Al Hudu ',''),
+          label: shortBranchName(branch),
           data: days.map(d => (byDayBranch[d] && byDayBranch[d][branch]) || 0),
           borderColor: color, backgroundColor: color+'33',
           tension:.3, fill:true, pointRadius:3, pointHoverRadius:5
@@ -363,7 +363,7 @@ function buildBarChart(fp) {
     } else {
       const color = BRANCH_COLORS[BRANCHES.indexOf(activeDailyBranch)] || ACCENT;
       datasets.push({
-        label: activeDailyBranch.replace('Al Hudu ',''),
+        label: shortBranchName(activeDailyBranch),
         data: days.map(d => (byDayBranch[d] && byDayBranch[d][activeDailyBranch]) || 0),
         borderColor: color, backgroundColor: color+'33',
         tension:.3, fill:true, pointRadius:3, pointHoverRadius:5
@@ -415,7 +415,7 @@ function buildDailyTableHTML(purchases) {
   const days = Object.keys(byDay).sort().reverse();
   if (days.length === 0) return '<div class="empty-state" style="margin-bottom:14px;">No sales in the last 30 days</div>';
 
-  const branchHeaders = BRANCHES.map(b => '<span>' + e(b.replace('Al Hudu ','')) + '</span>').join('');
+  const branchHeaders = BRANCHES.map(b => '<span>' + e(shortBranchName(b)) + '</span>').join('');
   let rows = '';
   days.forEach(d => {
     const label = new Date(d).toLocaleDateString('en-GB',{day:'numeric',month:'short'});
