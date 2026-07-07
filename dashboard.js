@@ -246,7 +246,7 @@ async function exportCustomersCSV(btn) {
   btn.textContent = "Preparing...";
   try {
     const headers = [
-      "Name", "Phone", "Email", "Birthday", "Top Branch", "Level",
+      "Name", "Phone", "Email", "Birthday", "Address", "Top Branch", "Level",
       "Points", "Balance (AED)", "Lifetime Total (AED)", "Active Vouchers", "Created"
     ];
     const rows = allCustomers.map((c) => {
@@ -254,7 +254,7 @@ async function exportCustomersCSV(btn) {
       const created = c.createdAt && c.createdAt.seconds
         ? new Date(c.createdAt.seconds * 1000).toISOString().slice(0, 10) : "";
       return [
-        c.name || "", c.phone || "", c.email || "", c.birthday || "",
+        c.name || "", c.phone || "", c.email || "", c.birthday || "", c.address || "",
         c.topBranch || "", level ? level.name : "",
         c.totalPoints || 0, pointsToAED(c.totalPoints || 0),
         c.totalPurchases || 0, c.activeVoucherCount || 0, created,
