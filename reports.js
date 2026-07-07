@@ -12,6 +12,7 @@ const ACCENT2 = '#C9A27A';
 const ACCENT3 = '#E8D5B7';
 const GRID    = '#E3D6C1';
 const BRANCH_COLORS = [ACCENT, ACCENT2, '#E8B87A', '#D4A06A'];
+const REGION_COLORS = [ACCENT, '#9C7A30', ACCENT2, '#8C5E96', '#C08552', '#3E8E5C', '#B08968', '#7E7660', '#DDB892', '#C0594A'];
 
 Chart.defaults.font.family = '-apple-system,"Segoe UI",Roboto,sans-serif';
 Chart.defaults.color = '#8A7860';
@@ -22,7 +23,10 @@ let branchTotalsAllTime = {};
 let activeBranch = 'all';
 let activeTime   = 'monthly';
 let activeDailyBranch = 'all';
+let activeRegionLevel  = 'emirate';
+let activeRegionPeriod = 'month';
 let barChartInstance = null;
+let regionChartInstance = null;
 
 requireAdmin(() => {
   loadReport();
@@ -104,6 +108,32 @@ function trendText(current, prev) {
 function trendClass(current, prev) {
   if (!prev) return 'neutral';
   return current >= prev ? 'up' : 'down';
+}
+
+// Groups customers by emirate (or "Emirate — Area") and sums their spend
+// for each time window. Reads straight from each customer's monthlySpend
+// map and totalPurchases — no extra Firestore reads needed, since that data
+// is already loaded for the rest of this page. Customers with no emirate/area
+// set are counted separately as "unassigned" rather than dropped silently.
+function regionBuckets(level, thisM, lastM) {
+  const buckets = {};
+  let unassignedCount = 0;
+  allCustomers.forEach(c => {
+    const emirate = (c.emirate || '').trim();
+    const areaVal = (c.area || '').trim();
+    const label = level === 'emirate'
+      ? (emirate || null)
+      : (emirate && areaVal ? (emirate + ' — ' + areaVal) : (areaVal || null));
+    if (!label) { unassignedCount++; return; }
+    if (!buckets[label]) buckets[label] = { thisMonth:0, lastMonth:0, threeMonth:0, lifetime:0, count:0 };
+    const ms = c.monthlySpend || {};
+    buckets[label].thisMonth  += ms[thisM] || 0;
+    buckets[label].lastMonth  += ms[lastM] || 0;
+    buckets[label].threeMonth += getThreeMonthTotal(ms);
+    buckets[label].lifetime   += c.totalPurchases || 0;
+    buckets[label].count      += 1;
+  });
+  return { buckets, unassignedCount };
 }
 
 function e(s) {
@@ -256,6 +286,8 @@ function renderAll(area) {
 
     (activeTime === 'daily' ? buildDailyTableHTML(allPurchases) : '') +
 
+    buildRegionSectionHTML() +
+
     '<div class="section-title">Top Customers</div>' +
     '<div class="top-table">' +
       '<div class="t-head"><span>Name</span><span>Level</span><span>Points</span><span>Total (AED)</span></div>' +
@@ -266,6 +298,7 @@ function renderAll(area) {
   buildBarChart(fp);
   buildDonutChart(branchEntries, branchTotal);
   buildPieChart(lvc);
+  buildRegionChart();
 
   // Legend
   const legendEl = document.getElementById('branchLegend');
@@ -286,6 +319,13 @@ function renderAll(area) {
 
   area.querySelectorAll('[data-daily-branch]').forEach(btn => {
     btn.addEventListener('click', () => { activeDailyBranch = btn.dataset.dailyBranch; renderAll(area); });
+  });
+
+  area.querySelectorAll('[data-region-level]').forEach(btn => {
+    btn.addEventListener('click', () => { activeRegionLevel = btn.dataset.regionLevel; renderAll(area); });
+  });
+  area.querySelectorAll('[data-region-period]').forEach(btn => {
+    btn.addEventListener('click', () => { activeRegionPeriod = btn.dataset.regionPeriod; renderAll(area); });
   });
 
   const recalcBtn = document.getElementById('recalcBranchBtn');
@@ -456,6 +496,109 @@ function buildPieChart(lvc) {
       plugins: { legend: {display:false}, tooltip: { callbacks: { label: ctx => ' ' + ctx.label + ': ' + ctx.parsed } } }
     }
   });
+}
+
+function regionPeriodLabel(period) {
+  if (period === 'threeMonth') return 'Rolling 3-month total, grouped by customer location';
+  if (period === 'lifetime')   return 'All-time total, grouped by customer location';
+  return 'This month\u2019s sales, grouped by customer location';
+}
+
+// Builds the "Sales by Region" section markup: an Emirate/Area toggle, a
+// This Month / 3 Months / Lifetime toggle, and an empty canvas that
+// buildRegionChart() fills in once it's in the DOM.
+function buildRegionSectionHTML() {
+  const levelLabel = activeRegionLevel === 'area' ? 'By Area' : 'By Emirate';
+  return (
+    '<div class="section-title">Sales by Region</div>' +
+    '<div class="chart-card">' +
+      '<div class="chart-title">Top Locations \u2014 ' + levelLabel + '</div>' +
+      '<div class="chart-sub">' + regionPeriodLabel(activeRegionPeriod) + '</div>' +
+      '<div class="time-toggle">' +
+        '<button class="time-btn ' + (activeRegionLevel==='emirate'?'active':'') + '" data-region-level="emirate">Emirate</button>' +
+        '<button class="time-btn ' + (activeRegionLevel==='area'?'active':'') + '" data-region-level="area">Area</button>' +
+      '</div>' +
+      '<div class="time-toggle">' +
+        '<button class="time-btn ' + (activeRegionPeriod==='month'?'active':'') + '" data-region-period="month">This Month</button>' +
+        '<button class="time-btn ' + (activeRegionPeriod==='threeMonth'?'active':'') + '" data-region-period="threeMonth">3 Months</button>' +
+        '<button class="time-btn ' + (activeRegionPeriod==='lifetime'?'active':'') + '" data-region-period="lifetime">Lifetime</button>' +
+      '</div>' +
+      '<div class="chart-wrap" id="regionChartWrap" style="height:280px;"><canvas id="regionChart"></canvas></div>' +
+      '<div class="muted" id="regionUnassignedNote" style="margin-top:10px; font-size:11px; line-height:1.6;"></div>' +
+    '</div>'
+  );
+}
+
+// Renders (or re-renders) the horizontal bar chart for the region section
+// using the current activeRegionLevel / activeRegionPeriod selection.
+function buildRegionChart() {
+  if (regionChartInstance) { regionChartInstance.destroy(); regionChartInstance = null; }
+
+  const now   = new Date();
+  const thisM = monthKey(now);
+  const lastM = monthKey(new Date(now.getFullYear(), now.getMonth()-1, 1));
+  const { buckets, unassignedCount } = regionBuckets(activeRegionLevel, thisM, lastM);
+
+  const fieldMap = { month: 'thisMonth', threeMonth: 'threeMonth', lifetime: 'lifetime' };
+  const field = fieldMap[activeRegionPeriod] || 'thisMonth';
+
+  const allEntries = Object.entries(buckets)
+    .map(([label, v]) => [label, v[field] || 0])
+    .filter(([, val]) => val > 0)
+    .sort((a, b) => b[1] - a[1]);
+
+  const grandTotal = allEntries.reduce((s, x) => s + x[1], 0) || 1;
+  const shown = allEntries.slice(0, 10);
+  const remaining = allEntries.length - shown.length;
+
+  const canvas = document.getElementById('regionChart');
+  const noteEl = document.getElementById('regionUnassignedNote');
+
+  if (!canvas) return;
+
+  if (shown.length === 0) {
+    canvas.parentElement.innerHTML = '<div class="empty-state" style="padding:36px 0;">No regional sales data yet for this period</div>';
+  } else {
+    regionChartInstance = new Chart(canvas, {
+      type: 'bar',
+      data: {
+        labels: shown.map(x => x[0]),
+        datasets: [{
+          data: shown.map(x => x[1]),
+          backgroundColor: shown.map((_, i) => REGION_COLORS[i % REGION_COLORS.length]),
+          borderRadius: 6,
+          maxBarThickness: 22,
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        layout: { padding: { right: 8 } },
+        scales: {
+          x: { beginAtZero: true, grid: { color: GRID }, ticks: { font: { size: 10 } } },
+          y: { grid: { display: false }, ticks: { font: { size: 11, weight: '600' } } }
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: ctx => ' ' + ctx.parsed.x.toLocaleString('en-US') + ' AED  (' + Math.round((ctx.parsed.x / grandTotal) * 100) + '%)'
+            }
+          }
+        }
+      }
+    });
+  }
+
+  if (noteEl) {
+    let note = '';
+    if (remaining > 0) note += '+' + remaining + ' more location' + (remaining > 1 ? 's' : '') + ' not shown. ';
+    if (unassignedCount > 0) {
+      note += unassignedCount + ' customer' + (unassignedCount > 1 ? 's have' : ' has') + ' no area set \u2014 add it in their profile to include them here.';
+    }
+    noteEl.textContent = note;
+  }
 }
 
 // One-time (or occasional) full historical scan to rebuild the branch-totals
