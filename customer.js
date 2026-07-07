@@ -70,7 +70,8 @@ function renderInfo() {
       <div style="margin-top:14px; font-size:13px; color:var(--text-dim); line-height:2;">
         📞 ${escapeHtml(customerData.phone || "—")}<br>
         ✉️ ${escapeHtml(customerData.email || "—")}<br>
-        🎂 ${escapeHtml(customerData.birthday || "—")}
+        🎂 ${escapeHtml(customerData.birthday || "—")}<br>
+        📍 ${escapeHtml(customerData.address || "—")}
       </div>
       <div style="display:flex; gap:8px; margin-top:14px;">
         <button class="btn secondary" id="openEditBtn" style="flex:1;">✏️ Edit</button>
@@ -94,7 +95,8 @@ function renderInfo() {
       <div style="margin-top:14px; font-size:13px; color:var(--text-dim); line-height:2;">
         📞 ${escapeHtml(customerData.phone || "—")}<br>
         ✉️ ${escapeHtml(customerData.email || "—")}<br>
-        🎂 ${escapeHtml(customerData.birthday || "—")}
+        🎂 ${escapeHtml(customerData.birthday || "—")}<br>
+        📍 ${escapeHtml(customerData.address || "—")}
       </div>
       <div class="locked-info" style="margin-top:12px;">🔒 Sales total & purchase history — Admin only</div>
       <div style="display:flex; gap:8px; margin-top:14px;">
@@ -394,6 +396,7 @@ function openEditSheet() {
   document.getElementById("e_phone").value = customerData.phone || "";
   document.getElementById("e_email").value = customerData.email || "";
   document.getElementById("e_birthday").value = customerData.birthday || "";
+  document.getElementById("e_address").value = customerData.address || "";
   document.getElementById("editError").classList.remove("show");
   document.getElementById("editSuccess").classList.remove("show");
   editOverlay.classList.add("show");
@@ -411,13 +414,14 @@ document.getElementById("editForm").addEventListener("submit", async (e) => {
   const phoneCheck = validatePhone(document.getElementById("e_phone").value);
   const emailCheck = validateEmail(document.getElementById("e_email").value);
   const birthday = document.getElementById("e_birthday").value;
+  const addressCheck = validateText(document.getElementById("e_address").value, { label: "Address", maxLength: 200, required: false });
 
-  const failedCheck = [nameCheck, phoneCheck, emailCheck].find((c) => !c.valid);
+  const failedCheck = [nameCheck, phoneCheck, emailCheck, addressCheck].find((c) => !c.valid);
   if (failedCheck) { errEl.textContent = failedCheck.error; errEl.classList.add("show"); return; }
-  const name = nameCheck.value, phone = phoneCheck.value, email = emailCheck.value;
+  const name = nameCheck.value, phone = phoneCheck.value, email = emailCheck.value, address = addressCheck.value;
 
   try {
-    await updateDoc(doc(db, "customers", customerId), { name, phone, email, birthday });
+    await updateDoc(doc(db, "customers", customerId), { name, phone, email, birthday, address });
     sucEl.textContent = "✅ Info updated.";
     sucEl.classList.add("show");
     setTimeout(() => { editOverlay.classList.remove("show"); loadAll(); }, 1000);
