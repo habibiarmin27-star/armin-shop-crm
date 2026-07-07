@@ -6,6 +6,7 @@ import { BRANCHES } from "./branches-config.js";
 import { getCustomerLevel, getThreeMonthTotal, getMonthKeyFromDateStr } from "./levels-config.js";
 import { calculatePoints, pointsToAED } from "./points-config.js";
 import { validateText, validateEmail, validatePhone } from "./input-guard.js";
+import { EMIRATES, OTHER_VALUE } from "./area-config.js";
 import {
   doc, getDoc, setDoc, updateDoc, deleteDoc, collection, addDoc, getDocs, query, orderBy,
   serverTimestamp, Timestamp, where, increment
@@ -22,6 +23,44 @@ if (!customerId) {
 // Fill the branch dropdown
 document.getElementById("p_branch").innerHTML =
   BRANCHES.map((b) => `<option value="${b}">${b}</option>`).join("");
+
+// ---- Emirate / Area cascading dropdowns ----
+const emirateSelect = document.getElementById("e_emirate");
+const areaSelect = document.getElementById("e_area");
+const emirateOtherInput = document.getElementById("e_emirate_other");
+const areaOtherInput = document.getElementById("e_area_other");
+
+emirateSelect.innerHTML =
+  `<option value="">— Select —</option>` +
+  Object.keys(EMIRATES).map((e) => `<option value="${e}">${e}</option>`).join("") +
+  `<option value="${OTHER_VALUE}">Other (type manually)</option>`;
+
+function populateAreaOptions(emirate) {
+  const areas = EMIRATES[emirate] || [];
+  areaSelect.innerHTML =
+    `<option value="">— Select —</option>` +
+    areas.map((a) => `<option value="${a}">${a}</option>`).join("") +
+    `<option value="${OTHER_VALUE}">Other (type manually)</option>`;
+}
+
+emirateSelect.addEventListener("change", () => {
+  const val = emirateSelect.value;
+  emirateOtherInput.style.display = val === OTHER_VALUE ? "block" : "none";
+  if (val === OTHER_VALUE) {
+    // No known area list for a custom emirate — just let staff type the area directly.
+    areaSelect.innerHTML = `<option value="${OTHER_VALUE}">Other (type manually)</option>`;
+    areaSelect.value = OTHER_VALUE;
+    areaOtherInput.style.display = "block";
+  } else {
+    populateAreaOptions(val);
+    areaOtherInput.style.display = "none";
+    areaOtherInput.value = "";
+  }
+});
+
+areaSelect.addEventListener("change", () => {
+  areaOtherInput.style.display = areaSelect.value === OTHER_VALUE ? "block" : "none";
+});
 
 let userRole = "staff";
 
@@ -71,7 +110,8 @@ function renderInfo() {
         📞 ${escapeHtml(customerData.phone || "—")}<br>
         ✉️ ${escapeHtml(customerData.email || "—")}<br>
         🎂 ${escapeHtml(customerData.birthday || "—")}<br>
-        📍 ${escapeHtml(customerData.address || "—")}
+        📍 ${escapeHtml(customerData.address || "—")}<br>
+        🗺️ ${escapeHtml(regionLabel(customerData))}
       </div>
       <div style="display:flex; gap:8px; margin-top:14px;">
         <button class="btn secondary" id="openEditBtn" style="flex:1;">✏️ Edit</button>
@@ -96,7 +136,8 @@ function renderInfo() {
         📞 ${escapeHtml(customerData.phone || "—")}<br>
         ✉️ ${escapeHtml(customerData.email || "—")}<br>
         🎂 ${escapeHtml(customerData.birthday || "—")}<br>
-        📍 ${escapeHtml(customerData.address || "—")}
+        📍 ${escapeHtml(customerData.address || "—")}<br>
+        🗺️ ${escapeHtml(regionLabel(customerData))}
       </div>
       <div class="locked-info" style="margin-top:12px;">🔒 Sales total & purchase history — Admin only</div>
       <div style="display:flex; gap:8px; margin-top:14px;">
@@ -397,6 +438,42 @@ function openEditSheet() {
   document.getElementById("e_email").value = customerData.email || "";
   document.getElementById("e_birthday").value = customerData.birthday || "";
   document.getElementById("e_address").value = customerData.address || "";
+
+  // Emirate: select the stored value if it's a known emirate, otherwise fall back to "Other".
+  const savedEmirate = customerData.emirate || "";
+  if (savedEmirate && EMIRATES.hasOwnProperty(savedEmirate)) {
+    emirateSelect.value = savedEmirate;
+    populateAreaOptions(savedEmirate);
+    emirateOtherInput.style.display = "none";
+    emirateOtherInput.value = "";
+  } else if (savedEmirate) {
+    emirateSelect.value = OTHER_VALUE;
+    emirateOtherInput.style.display = "block";
+    emirateOtherInput.value = savedEmirate;
+    areaSelect.innerHTML = `<option value="${OTHER_VALUE}">Other (type manually)</option>`;
+  } else {
+    emirateSelect.value = "";
+    emirateOtherInput.style.display = "none";
+    emirateOtherInput.value = "";
+    areaSelect.innerHTML = `<option value="">— Select —</option><option value="${OTHER_VALUE}">Other (type manually)</option>`;
+  }
+
+  // Area: select the stored value if it's in the current area list, otherwise "Other".
+  const savedArea = customerData.area || "";
+  const knownAreas = EMIRATES[savedEmirate] || [];
+  if (savedArea && knownAreas.includes(savedArea)) {
+    areaSelect.value = savedArea;
+    areaOtherInput.style.display = "none";
+    areaOtherInput.value = "";
+  } else if (savedArea) {
+    areaSelect.value = OTHER_VALUE;
+    areaOtherInput.style.display = "block";
+    areaOtherInput.value = savedArea;
+  } else {
+    areaOtherInput.style.display = "none";
+    areaOtherInput.value = "";
+  }
+
   document.getElementById("editError").classList.remove("show");
   document.getElementById("editSuccess").classList.remove("show");
   editOverlay.classList.add("show");
@@ -416,12 +493,19 @@ document.getElementById("editForm").addEventListener("submit", async (e) => {
   const birthday = document.getElementById("e_birthday").value;
   const addressCheck = validateText(document.getElementById("e_address").value, { label: "Address", maxLength: 200, required: false });
 
-  const failedCheck = [nameCheck, phoneCheck, emailCheck, addressCheck].find((c) => !c.valid);
+  // Resolve emirate: either the dropdown value, or the typed value if "Other" was chosen.
+  const emirateRaw = emirateSelect.value === OTHER_VALUE ? emirateOtherInput.value : emirateSelect.value;
+  const areaRaw = areaSelect.value === OTHER_VALUE ? areaOtherInput.value : areaSelect.value;
+  const emirateCheck = validateText(emirateRaw, { label: "Emirate", maxLength: 60, required: false });
+  const areaCheck = validateText(areaRaw, { label: "Area", maxLength: 60, required: false });
+
+  const failedCheck = [nameCheck, phoneCheck, emailCheck, addressCheck, emirateCheck, areaCheck].find((c) => !c.valid);
   if (failedCheck) { errEl.textContent = failedCheck.error; errEl.classList.add("show"); return; }
   const name = nameCheck.value, phone = phoneCheck.value, email = emailCheck.value, address = addressCheck.value;
+  const emirate = emirateCheck.value, area = areaCheck.value;
 
   try {
-    await updateDoc(doc(db, "customers", customerId), { name, phone, email, birthday, address });
+    await updateDoc(doc(db, "customers", customerId), { name, phone, email, birthday, address, emirate, area });
     sucEl.textContent = "✅ Info updated.";
     sucEl.classList.add("show");
     setTimeout(() => { editOverlay.classList.remove("show"); loadAll(); }, 1000);
@@ -450,6 +534,14 @@ async function deleteCustomer() {
 function escapeHtml(str) {
   return String(str).replace(/[&<>"']/g, (m) =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
+}
+
+// Combines emirate + area into one display string, e.g. "Dubai — Al Barsha".
+function regionLabel(data) {
+  const emirate = (data.emirate || "").trim();
+  const area = (data.area || "").trim();
+  if (emirate && area) return `${emirate} — ${area}`;
+  return emirate || area || "—";
 }
 
 // Writes a row to the "activity" collection for Staff Management's log.
