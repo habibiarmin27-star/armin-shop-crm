@@ -4,8 +4,8 @@
 // How many points per AED spent (e.g. 100 AED = 30 points)
 export const POINTS_PER_100_AED = 30;
 
-// How many points equal 1 AED balance (e.g. 10 points = 1 AED)
-export const POINTS_PER_AED = 10;
+// How many points equal 1 AED balance (e.g. 50 points = 1 AED, so 1000 points = 20 AED)
+export const POINTS_PER_AED = 50;
 
 // Calculate points earned from a purchase amount
 export function calculatePoints(amount) {
