@@ -5,10 +5,11 @@ import {
   collection, query, where, getDocs, doc, updateDoc, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-requireAuth(() => {});
-
 const codeInput = document.getElementById("codeInput");
 const resultArea = document.getElementById("resultArea");
+let currentUser = null;
+
+requireAuth((user) => { currentUser = user; });
 
 document.getElementById("checkBtn").addEventListener("click", checkCode);
 codeInput.addEventListener("keydown", (e) => {
@@ -73,6 +74,7 @@ async function redeemVoucher() {
     await updateDoc(doc(db, "vouchers", currentVoucher.id), {
       status: "used",
       usedAt: serverTimestamp(),
+      usedBy: currentUser ? currentUser.email : "unknown",
     });
 
     const custRef = doc(db, "customers", currentVoucher.customerId);
