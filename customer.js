@@ -63,8 +63,50 @@ areaSelect.addEventListener("change", () => {
 });
 
 let userRole = "staff";
+let currentUserEmail = null;
 
-requireAuth((user, role) => { userRole = role; loadAll(); });
+requireAuth((user, role) => {
+  userRole = role;
+  currentUserEmail = user.email;
+  loadAll();
+  loadSalespeople();
+});
+
+// Fills the Salesperson dropdown from active staff members, and pre-selects
+// whoever is currently logged in (most sales are self-recorded) — anyone
+// filling the form can still pick a different name, e.g. a cashier logging
+// a sale that another salesperson closed.
+async function loadSalespeople() {
+  const sel = document.getElementById("p_salesperson");
+  try {
+    const snap = await getDocs(collection(db, "staff"));
+    const active = snap.docs
+      .map((d) => ({ id: d.id, ...d.data() }))
+      .filter((m) => m.active !== false);
+    sel.innerHTML = active
+      .map((m) => `<option value="${m.id}">${staffDisplayName(m.id)}</option>`)
+      .join("");
+    applyDefaultSalesperson();
+  } catch (err) {
+    console.error("Failed to load salespeople", err);
+  }
+}
+
+function applyDefaultSalesperson() {
+  const sel = document.getElementById("p_salesperson");
+  if (!sel || !currentUserEmail) return;
+  if ([...sel.options].some((o) => o.value === currentUserEmail)) {
+    sel.value = currentUserEmail;
+  }
+}
+
+// Turns "sara.ahmed@alhudu.ae" into "Sara Ahmed" for a friendlier dropdown
+// label — staff records only store an email, no separate display name.
+function staffDisplayName(email) {
+  if (!email) return "Unknown";
+  const local = email.split("@")[0];
+  return local.replace(/[._-]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
 
 async function loadAll() {
   await loadCustomer();
@@ -289,7 +331,7 @@ async function markVoucherUsed(voucherId, btn) {
 
 // ---- Add purchase ----
 const purchaseOverlay = document.getElementById("purchaseOverlay");
-document.getElementById("openPurchaseBtn").addEventListener("click", () => purchaseOverlay.classList.add("show"));
+document.getElementById("openPurchaseBtn").addEventListener("click", () => { applyDefaultSalesperson(); purchaseOverlay.classList.add("show"); });
 document.getElementById("cancelPurchaseBtn").addEventListener("click", () => purchaseOverlay.classList.remove("show"));
 
 document.getElementById("purchaseForm").addEventListener("submit", async (e) => {
@@ -301,13 +343,19 @@ document.getElementById("purchaseForm").addEventListener("submit", async (e) => 
 
   const amount = parseFloat(document.getElementById("p_amount").value);
   const branch = document.getElementById("p_branch").value;
+  const salesperson = document.getElementById("p_salesperson").value;
   const date = document.getElementById("p_date").value || new Date().toISOString().slice(0, 10);
   if (!amount || amount <= 0) return;
+  if (!salesperson) {
+    errorBox.textContent = "Please select which salesperson made this sale.";
+    errorBox.classList.add("show");
+    return;
+  }
 
   try {
     await addDoc(collection(db, "customers", customerId, "purchases"), {
       amount, date, branch, createdAt: serverTimestamp(),
-      recordedBy: auth.currentUser ? auth.currentUser.email : "unknown",
+      recordedBy: salesperson,
     });
 
     const newTotal = (customerData.totalPurchases || 0) + amount;
@@ -347,6 +395,7 @@ document.getElementById("purchaseForm").addEventListener("submit", async (e) => 
     updateBranchTotal(branch, amount);
 
     document.getElementById("purchaseForm").reset();
+    applyDefaultSalesperson();
     const ptsMsg = pointsEarned > 0 ? ` +${pointsEarned} pts earned.` : "";
     successBox.textContent = newVoucherCount > 0
       ? `Purchase recorded! Voucher issued 🎉${ptsMsg}`
