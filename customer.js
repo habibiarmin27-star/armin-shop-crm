@@ -307,6 +307,7 @@ document.getElementById("purchaseForm").addEventListener("submit", async (e) => 
   try {
     await addDoc(collection(db, "customers", customerId, "purchases"), {
       amount, date, branch, createdAt: serverTimestamp(),
+      recordedBy: auth.currentUser ? auth.currentUser.email : "unknown",
     });
 
     const newTotal = (customerData.totalPurchases || 0) + amount;
