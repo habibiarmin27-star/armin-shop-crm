@@ -31,7 +31,7 @@ async function loadStaff() {
       const statusBtn = active
         ? '<button class="s-action danger" data-toggle="' + esc(m.id) + '" data-active="true">Deactivate</button>'
         : '<button class="s-action" data-toggle="' + esc(m.id) + '" data-active="false">Activate</button>';
-      rows += '<div class="t-row">' +
+      rows += '<div class="t-row s-clickable" data-open="' + esc(m.id) + '">' +
         '<span class="s-email">' + esc(m.email||m.id) + '</span>' +
         '<span><span class="role-pill ' + roleClass + '">' + roleLabel + '</span></span>' +
         '<span>' + statusBtn + '</span>' +
@@ -39,6 +39,13 @@ async function loadStaff() {
     });
     rows += '</div>';
     listEl.innerHTML = rows;
+
+    listEl.querySelectorAll('[data-open]').forEach(row => {
+      row.addEventListener('click', (e) => {
+        if (e.target.closest('[data-toggle]')) return; // let the button handle its own click
+        window.location.href = 'staff-profile.html?email=' + encodeURIComponent(row.dataset.open);
+      });
+    });
 
     listEl.querySelectorAll('[data-toggle]').forEach(btn => {
       btn.addEventListener('click', () => toggleActive(btn.dataset.toggle, btn.dataset.active === "true"));
