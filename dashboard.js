@@ -157,8 +157,62 @@ document.getElementById("searchInput").addEventListener("input", (e) => {
 
 // Add-customer sheet (both roles can add)
 const addOverlay = document.getElementById("addOverlay");
-document.getElementById("openAddBtn").addEventListener("click", () => addOverlay.classList.add("show"));
-document.getElementById("cancelAddBtn").addEventListener("click", () => addOverlay.classList.remove("show"));
+document.getElementById("openAddBtn").addEventListener("click", () => { resetDupCheck(); addOverlay.classList.add("show"); });
+document.getElementById("cancelAddBtn").addEventListener("click", () => { resetDupCheck(); addOverlay.classList.remove("show"); });
+
+// Keeps only the last 9 digits of a phone number so "+971 50 123 4567",
+// "0501234567" and "971501234567" are all recognized as the same number
+// regardless of how the country code or spacing was typed.
+function normalizePhone(phone) {
+  return (phone || "").replace(/\D/g, "").slice(-9);
+}
+
+// Looks for an existing customer matching by phone number first (most
+// reliable), falling back to an exact name match only when no phone was
+// entered at all.
+function findDuplicateCustomer(name, phone) {
+  const normPhone = normalizePhone(phone);
+  if (normPhone.length >= 7) {
+    const match = allCustomers.find((c) => normalizePhone(c.phone) === normPhone);
+    if (match) return match;
+  }
+  const normName = (name || "").trim().toLowerCase();
+  if (normName && !normPhone) {
+    const match = allCustomers.find((c) => (c.name || "").trim().toLowerCase() === normName);
+    if (match) return match;
+  }
+  return null;
+}
+
+let dupConfirmed = false; // true once the staff has seen the warning and tapped Save again
+
+function resetDupCheck() {
+  dupConfirmed = false;
+  document.getElementById("dupWarning").classList.remove("show");
+  document.getElementById("addForm").querySelector('button[type="submit"]').textContent = "Save Customer";
+}
+
+function checkDupLive() {
+  const name = document.getElementById("c_name").value;
+  const phone = document.getElementById("c_phone").value;
+  const dupBox = document.getElementById("dupWarning");
+  const match = findDuplicateCustomer(name, phone);
+  dupConfirmed = false;
+  document.getElementById("addForm").querySelector('button[type="submit"]').textContent = "Save Customer";
+  if (match) {
+    dupBox.innerHTML = `⚠️ A customer with this ${normalizePhone(phone) ? "phone number" : "name"} already exists: ` +
+      `<a href="customer.html?id=${match.id}">${escapeHtml(match.name || "Unnamed")}</a>`;
+    dupBox.classList.add("show");
+  } else {
+    dupBox.classList.remove("show");
+  }
+}
+function escapeHtml(str) {
+  return String(str).replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
+}
+
+document.getElementById("c_name").addEventListener("input", checkDupLive);
+document.getElementById("c_phone").addEventListener("input", checkDupLive);
 
 document.getElementById("addForm").addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -178,6 +232,17 @@ document.getElementById("addForm").addEventListener("submit", async (e) => {
   }
   const name = nameCheck.value, phone = phoneCheck.value, email = emailCheck.value;
 
+  // First tap on a duplicate just warns and asks for a second tap to
+  // confirm, instead of silently creating a second profile for the same
+  // person.
+  const dup = findDuplicateCustomer(name, phone);
+  if (dup && !dupConfirmed) {
+    dupConfirmed = true;
+    document.getElementById("addForm").querySelector('button[type="submit"]').textContent = "Save Anyway — Tap to Confirm";
+    document.getElementById("dupWarning").classList.add("show");
+    return;
+  }
+
   try {
     await addDoc(collection(db, "customers"), {
       name, phone, email, birthday,
@@ -185,6 +250,7 @@ document.getElementById("addForm").addEventListener("submit", async (e) => {
       createdAt: serverTimestamp(),
     });
     document.getElementById("addForm").reset();
+    resetDupCheck();
     addOverlay.classList.remove("show");
     logActivity(`New customer added — ${name}`);
     loadCustomers();
