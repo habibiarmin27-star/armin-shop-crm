@@ -9,7 +9,7 @@ import { validateText, validateEmail, validatePhone } from "./input-guard.js";
 import { EMIRATES, OTHER_VALUE } from "./area-config.js";
 import {
   doc, getDoc, setDoc, updateDoc, deleteDoc, collection, addDoc, getDocs, query, orderBy,
-  serverTimestamp, Timestamp, where, increment
+  serverTimestamp, Timestamp, where, increment, writeBatch
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const params = new URLSearchParams(window.location.search);
@@ -353,7 +353,12 @@ document.getElementById("purchaseForm").addEventListener("submit", async (e) => 
   }
 
   try {
-    await addDoc(collection(db, "customers", customerId, "purchases"), {
+    // Both writes succeed together or not at all — no more risk of the
+    // customer's purchase being saved while its sales-page copy silently fails.
+    const batch = writeBatch(db);
+
+    const purchaseRef = doc(collection(db, "customers", customerId, "purchases"));
+    batch.set(purchaseRef, {
       amount, date, branch, createdAt: serverTimestamp(),
       recordedBy: salesperson,
     });
@@ -361,10 +366,13 @@ document.getElementById("purchaseForm").addEventListener("submit", async (e) => 
     // A flat copy for the Staff Profile page — querying a top-level
     // collection needs no special Firestore index, unlike searching across
     // every customer's nested purchases at once.
-    await addDoc(collection(db, "sales"), {
+    const salesRef = doc(collection(db, "sales"));
+    batch.set(salesRef, {
       customerId, customerName: customerData.name || "",
       amount, date, branch, recordedBy: salesperson, createdAt: serverTimestamp(),
     });
+
+    await batch.commit();
 
     const newTotal = (customerData.totalPurchases || 0) + amount;
     const voucherTier = getTierForPurchase(amount);
@@ -419,7 +427,8 @@ document.getElementById("purchaseForm").addEventListener("submit", async (e) => 
     setTimeout(() => { purchaseOverlay.classList.remove("show"); successBox.classList.remove("show"); loadAll(); }, 1400);
 
   } catch (err) {
-    document.getElementById("purchaseError").textContent = "Failed to record the purchase.";
+    document.getElementById("purchaseError").textContent =
+      "Failed to record the purchase: " + (err && err.message ? err.message : String(err));
     document.getElementById("purchaseError").classList.add("show");
     console.error(err);
   }
