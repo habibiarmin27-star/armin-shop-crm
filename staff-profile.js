@@ -4,7 +4,7 @@ import { db } from "./firebase-init.js";
 import { requireAdmin } from "./auth-guard.js";
 import { shortBranchName } from "./branches-config.js";
 import {
-  collection, collectionGroup, query, where, onSnapshot, getDocs
+  collection, query, where, onSnapshot, getDocs
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const ACCENT  = '#7A4E2A';
@@ -22,8 +22,7 @@ if (!staffEmail) {
 }
 
 let staffRole = "staff";           // this profile's own role (for the badge)
-let customersById = {};            // custId -> name, for the purchase table
-let myPurchases = [];              // every purchase this staff member has ever recorded (live)
+let myPurchases = [];              // every sale this staff member has ever recorded (live)
 let myVouchers = [];                // every voucher this staff member has ever redeemed (live)
 let teamThisMonth = {};             // { email: totalThisMonthAED } across the whole team (live)
 let dateFilterValue = "";
@@ -33,42 +32,34 @@ let compareChartInstance = null;
 requireAdmin(() => { init(); });
 
 function init() {
-  loadStaffRoleAndCustomers();
+  loadStaffRole();
   listenMyPurchases();
   listenMyVouchers();
   listenTeamThisMonth();
 }
 
-// One-time reads: this staff member's own role (for the badge) and the
-// customer name lookup (customer names rarely change moment-to-moment, so
-// unlike the sales figures below, these don't need to be real-time).
-async function loadStaffRoleAndCustomers() {
+// One-time read: this staff member's own role, just for the badge. Doesn't
+// need to be real-time — roles don't change moment-to-moment.
+async function loadStaffRole() {
   try {
-    const [staffSnap, custSnap] = await Promise.all([
-      getDocs(collection(db, "staff")),
-      getDocs(collection(db, "customers")),
-    ]);
+    const staffSnap = await getDocs(collection(db, "staff"));
     const me = staffSnap.docs.find(d => d.id === staffEmail);
     staffRole = me && me.data().role === "admin" ? "admin" : "staff";
-    customersById = {};
-    custSnap.docs.forEach(d => { customersById[d.id] = d.data().name || "Unnamed"; });
   } catch (err) {
-    console.error("Failed to load staff/customers", err);
+    console.error("Failed to load staff role", err);
   }
   renderAll();
 }
 
-// Every purchase ever recorded by this staff member, across every customer
-// and branch. Deliberately NOT date-bounded: it's scoped to a single staff
-// member's own history (inherently small), not the whole store, so it stays
-// cheap without needing a composite index on (recordedBy + date).
+// Every sale ever recorded by this staff member. Reads from the top-level
+// "sales" collection (a flat copy written alongside each customer's own
+// purchase record) rather than searching across every customer's nested
+// purchases — a plain collection query like this is indexed automatically,
+// no manual Firestore index setup required.
 function listenMyPurchases() {
-  const q = query(collectionGroup(db, "purchases"), where("recordedBy", "==", staffEmail));
+  const q = query(collection(db, "sales"), where("recordedBy", "==", staffEmail));
   onSnapshot(q, (snap) => {
-    myPurchases = snap.docs.map(d => {
-      const custId = d.ref.parent.parent ? d.ref.parent.parent.id : null;
-      return { ...d.data(), custId };
-    });
+    myPurchases = snap.docs.map(d => d.data());
     renderAll();
   }, (err) => {
     document.getElementById("profileArea").innerHTML =
@@ -86,13 +77,12 @@ function listenMyVouchers() {
   }, (err) => console.error(err));
 }
 
-// Store-wide purchases for the current month only, grouped client-side by
-// who recorded them. This powers the team comparison chart. Bounded to a
-// single range filter on `date` — same pattern reports.js already uses, so
-// no extra index is needed.
+// Store-wide sales for the current month only, grouped client-side by who
+// recorded them. Powers the team comparison chart — again a plain
+// collection query (single range filter on `date`), no special index.
 function listenTeamThisMonth() {
   const start = monthKey(new Date()) + "-01";
-  const q = query(collectionGroup(db, "purchases"), where("date", ">=", start));
+  const q = query(collection(db, "sales"), where("date", ">=", start));
   onSnapshot(q, (snap) => {
     const totals = {};
     snap.docs.forEach(d => {
@@ -296,7 +286,7 @@ function renderPurchaseTable() {
   el.innerHTML = rows.map(p =>
     '<div class="t-row">' +
       '<span class="t-date">' + e((p.date || '').slice(5)) + '</span>' +
-      '<span class="t-name">' + e(p.custId && customersById[p.custId] ? customersById[p.custId] : 'Unknown') + '</span>' +
+      '<span class="t-name">' + e(p.customerName || 'Unknown') + '</span>' +
       '<span class="t-branch">' + e(shortBranchName(p.branch || '—')) + '</span>' +
       '<span class="t-amt">' + (p.amount || 0).toLocaleString('en-US') + '</span>' +
     '</div>'
