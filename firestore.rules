@@ -1,11 +1,80 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Only signed-in staff (accounts you create manually in Firebase Auth)
-    // can read or write anything in this database. There is no public
-    // sign-up — customers never get accounts here.
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function email() {
+      return request.auth.token.email;
+    }
+
+    function isBootstrapAdmin() {
+      return isSignedIn() && email() == "habibiarmin27@gmail.com";
+    }
+
+    function staffDocExists() {
+      return exists(/databases/$(database)/documents/staff/$(email()));
+    }
+
+    function staffDoc() {
+      return get(/databases/$(database)/documents/staff/$(email())).data;
+    }
+
+    function isActive() {
+      return isBootstrapAdmin() ||
+        (isSignedIn() && staffDocExists() && staffDoc().active != false);
+    }
+
+    function isAdmin() {
+      return isBootstrapAdmin() ||
+        (isActive() && staffDoc().role == "admin");
+    }
+
+    match /staff/{staffEmail} {
+      allow read: if isSignedIn() && (staffEmail == email() || isAdmin());
+      allow create: if isAdmin() || (isBootstrapAdmin() && staffEmail == email());
+      allow update: if isAdmin();
+      allow delete: if false;
+    }
+
+    match /customers/{customerId} {
+      allow read, create, update: if isActive();
+      allow delete: if isAdmin();
+    }
+
+    match /{path=**}/purchases/{purchaseId} {
+      allow read: if isAdmin();
+      allow create: if isActive();
+      allow update, delete: if false;
+    }
+
+    match /sales/{saleId} {
+      allow read: if isAdmin();
+      allow create: if isActive();
+      allow update, delete: if false;
+    }
+
+    match /vouchers/{voucherId} {
+      allow read, create, update: if isActive();
+      allow delete: if false;
+    }
+
+    match /activity/{activityId} {
+      allow read: if isAdmin();
+      allow create: if isActive();
+      allow update, delete: if false;
+    }
+
+    match /stats/{statId} {
+      allow read: if isAdmin();
+      allow write: if isActive();
+      allow delete: if false;
+    }
+
     match /{document=**} {
-      allow read, write: if request.auth != null;
+      allow read, write: if false;
     }
   }
 }
