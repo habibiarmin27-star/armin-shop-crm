@@ -358,6 +358,14 @@ document.getElementById("purchaseForm").addEventListener("submit", async (e) => 
       recordedBy: salesperson,
     });
 
+    // A flat copy for the Staff Profile page — querying a top-level
+    // collection needs no special Firestore index, unlike searching across
+    // every customer's nested purchases at once.
+    await addDoc(collection(db, "sales"), {
+      customerId, customerName: customerData.name || "",
+      amount, date, branch, recordedBy: salesperson, createdAt: serverTimestamp(),
+    });
+
     const newTotal = (customerData.totalPurchases || 0) + amount;
     const voucherTier = getTierForPurchase(amount);
     const pointsEarned = calculatePoints(amount);
