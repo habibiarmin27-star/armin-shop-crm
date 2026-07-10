@@ -7,6 +7,8 @@ import { getCustomerLevel, getThreeMonthTotal, getMonthKeyFromDateStr } from "./
 import { calculatePoints, pointsToAED } from "./points-config.js";
 import { validateText, validateEmail, validatePhone } from "./input-guard.js";
 import { EMIRATES, OTHER_VALUE } from "./area-config.js";
+import { sendEmail } from "./emailjs-config.js";
+import { thankYouMessage, thankYouSubject } from "./reminders-config.js";
 import {
   doc, getDoc, setDoc, updateDoc, deleteDoc, collection, addDoc, getDocs, query, orderBy,
   serverTimestamp, Timestamp, where, increment, writeBatch
@@ -373,6 +375,12 @@ document.getElementById("purchaseForm").addEventListener("submit", async (e) => 
     });
 
     await batch.commit();
+
+    // Fire-and-forget: the customer's thank-you email shouldn't slow down
+    // or block the rest of the purchase flow if it's ever slow to send.
+    if (customerData.email) {
+      sendEmail(customerData.email, thankYouSubject(), thankYouMessage(customerData.name || ""));
+    }
 
     const newTotal = (customerData.totalPurchases || 0) + amount;
     const voucherTier = getTierForPurchase(amount);
