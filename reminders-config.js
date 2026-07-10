@@ -22,3 +22,15 @@ export function birthdayMessage(name, code, expiryDate) {
 export function missYouMessage(name) {
   return `عزيزي/عزيزتي ${name}، اشتقنا لرؤيتكم في Al Hudu 💛 مرّ وقت طويل منذ آخر زيارة لكم، وننتظر عودتكم لنريكم أحدث صيحاتنا. بانتظاركم قريباً!`;
 }
+
+export function thankYouSubject() {
+  return "شكراً لزيارتكم Al Hudu 🧣";
+}
+
+export function birthdaySubject() {
+  return "عيد ميلاد سعيد من Al Hudu 🎉";
+}
+
+export function missYouSubject() {
+  return "اشتقنا لكم في Al Hudu 💛";
+}
