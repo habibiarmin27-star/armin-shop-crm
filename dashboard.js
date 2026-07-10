@@ -4,6 +4,7 @@ import { requireAuth } from "./auth-guard.js";
 import { getCustomerLevel, getThreeMonthTotal } from "./levels-config.js";
 import { pointsToAED } from "./points-config.js";
 import { validateText, validateEmail, validatePhone } from "./input-guard.js";
+import { runDailyAutoReminders } from "./auto-reminders.js";
 import {
   collection, collectionGroup, getDocs, addDoc, serverTimestamp, query, orderBy
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -75,6 +76,7 @@ async function loadCustomers() {
     const snap = await getDocs(query(collection(db, "customers"), orderBy("name")));
     allCustomers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     renderList(allCustomers);
+    runDailyAutoReminders(allCustomers); // fire-and-forget: birthdays & inactive customers
   } catch (err) {
     listArea.innerHTML = '<div class="empty-state">Failed to load customers</div>';
     console.error(err);
