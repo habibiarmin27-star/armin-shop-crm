@@ -3,7 +3,7 @@
 // backend server needed. Requires the EmailJS SDK <script> tag to already
 // be loaded on the page (see the <head> of dashboard.html / customer.html).
 
-export const EMAILJS_SERVICE_ID = "service_awt5vcw";
+export const EMAILJS_SERVICE_ID = "service_6dj61tm";
 export const EMAILJS_TEMPLATE_ID = "template_avxie3o";
 export const EMAILJS_PUBLIC_KEY = "eARcTwaTLTFMSLeSZ";
 
