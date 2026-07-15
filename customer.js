@@ -112,13 +112,19 @@ function staffDisplayName(email) {
 }
 
 async function loadAll() {
-  await loadCustomer();
-  if (userRole === "admin") {
-    await loadPurchases();
-  } else {
-    await loadMyPurchases();
+  try {
+    await loadCustomer();
+    if (userRole === "admin") {
+      await loadPurchases();
+    } else {
+      await loadMyPurchases();
+    }
+    await loadVouchers();
+  } catch (err) {
+    document.getElementById("infoCard").innerHTML =
+      `<div class="empty-state">Failed to load: ${escapeHtml(err && err.message ? err.message : String(err))}</div>`;
+    console.error(err);
   }
-  await loadVouchers();
 }
 
 async function loadCustomer() {
