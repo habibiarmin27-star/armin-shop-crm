@@ -17,6 +17,7 @@ import {
 const params = new URLSearchParams(window.location.search);
 const customerId = params.get("id");
 let customerData = null;
+let loadedPurchases = [];
 
 if (!customerId) {
   window.location.href = "dashboard.html";
@@ -114,6 +115,8 @@ async function loadAll() {
   await loadCustomer();
   if (userRole === "admin") {
     await loadPurchases();
+  } else {
+    await loadMyPurchases();
   }
   await loadVouchers();
 }
@@ -220,14 +223,25 @@ async function loadPurchases() {
     return;
   }
 
-  const purchases = snap.docs.map((d) => d.data());
+  const purchases = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  loadedPurchases = purchases; // kept for the edit sheet to look up by id
   listEl.innerHTML = purchases.map((p) => {
     const branchLabel = p.branch ? ` · ${escapeHtml(p.branch)}` : "";
+    const editBtn = p.recordedBy && p.recordedBy === currentUserEmail
+      ? `<button type="button" class="edit-purchase-btn" data-id="${p.id}">✏️</button>`
+      : "";
     return `<div class="purchase-row">
       <span class="date">${p.date || "—"}${branchLabel}</span>
-      <span class="amt">${p.amount} AED</span>
+      <span style="display:flex; align-items:center; gap:8px;">
+        <span class="amt">${p.amount} AED</span>
+        ${editBtn}
+      </span>
     </div>`;
   }).join("");
+
+  document.querySelectorAll(".edit-purchase-btn").forEach((btn) => {
+    btn.addEventListener("click", () => openEditPurchaseSheet(btn.dataset.id));
+  });
 
   const counts = {};
   purchases.forEach((p) => { if (p.branch) counts[p.branch] = (counts[p.branch] || 0) + 1; });
@@ -235,6 +249,43 @@ async function loadPurchases() {
   const bl = document.getElementById("branchInfoLine");
   if (bl) bl.textContent = topBranch ? `📍 Most-visited branch: ${topBranch}` : "";
 }
+
+// Staff (non-admin) don't get the full purchase history — only the entries
+// they personally recorded, so they can fix their own mistakes without
+// seeing what other staff or branches sold this customer.
+async function loadMyPurchases() {
+  const listEl = document.getElementById("purchaseList");
+  const snap = await getDocs(query(
+    collection(db, "customers", customerId, "purchases"),
+    where("recordedBy", "==", currentUserEmail)
+  ));
+
+  if (snap.empty) {
+    listEl.innerHTML = `<div class="empty-state">You haven't recorded any purchases for this customer</div>`;
+    loadedPurchases = [];
+    return;
+  }
+
+  const purchases = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+    .sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+  loadedPurchases = purchases;
+
+  listEl.innerHTML =
+    `<div class="muted" style="margin-bottom:8px; font-size:11.5px;">Showing only purchases you recorded for this customer</div>` +
+    purchases.map((p) => {
+      const branchLabel = p.branch ? ` · ${escapeHtml(p.branch)}` : "";
+      return `<div class="purchase-row">
+        <span class="date">${p.date || "—"}${branchLabel}</span>
+        <span style="display:flex; align-items:center; gap:8px;">
+          <span class="amt">${p.amount} AED</span>
+          <button type="button" class="edit-purchase-btn" data-id="${p.id}">✏️</button>
+        </span>
+      </div>`;
+    }).join("");
+
+  document.querySelectorAll(".edit-purchase-btn").forEach((btn) => {
+    btn.addEventListener("click", () => openEditPurchaseSheet(btn.dataset.id));
+  });
 
 async function loadVouchers() {
   const listEl = document.getElementById("voucherList");
@@ -360,18 +411,19 @@ document.getElementById("purchaseForm").addEventListener("submit", async (e) => 
     const batch = writeBatch(db);
 
     const purchaseRef = doc(collection(db, "customers", customerId, "purchases"));
+    const salesRef = doc(collection(db, "sales"));
     batch.set(purchaseRef, {
       amount, date, branch, createdAt: serverTimestamp(),
-      recordedBy: salesperson,
+      recordedBy: salesperson, salesId: salesRef.id,
     });
 
     // A flat copy for the Staff Profile page — querying a top-level
     // collection needs no special Firestore index, unlike searching across
     // every customer's nested purchases at once.
-    const salesRef = doc(collection(db, "sales"));
     batch.set(salesRef, {
       customerId, customerName: customerData.name || "",
       amount, date, branch, recordedBy: salesperson, createdAt: serverTimestamp(),
+      purchaseId: purchaseRef.id,
     });
 
     await batch.commit();
@@ -442,7 +494,140 @@ document.getElementById("purchaseForm").addEventListener("submit", async (e) => 
   }
 });
 
-// ---- Redeem points ----
+// ---- Correct Purchase (only the staff member who recorded it can edit amount & branch) ----
+const editPurchaseOverlay = document.getElementById("editPurchaseOverlay");
+let editingPurchaseId = null;
+
+document.getElementById("ep_branch").innerHTML =
+  BRANCHES.map((b) => `<option value="${b}">${b}</option>`).join("");
+
+function openEditPurchaseSheet(purchaseId) {
+  const p = loadedPurchases.find((x) => x.id === purchaseId);
+  if (!p) return;
+  editingPurchaseId = purchaseId;
+  document.getElementById("ep_amount").value = p.amount;
+  document.getElementById("ep_branch").value = p.branch || BRANCHES[0];
+  document.getElementById("editPurchaseError").classList.remove("show");
+  document.getElementById("editPurchaseWarning").classList.remove("show");
+  document.getElementById("editPurchaseSuccess").classList.remove("show");
+  editPurchaseOverlay.classList.add("show");
+}
+document.getElementById("cancelEditPurchaseBtn").addEventListener("click", () => editPurchaseOverlay.classList.remove("show"));
+
+document.getElementById("editPurchaseForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const errEl = document.getElementById("editPurchaseError");
+  const warnEl = document.getElementById("editPurchaseWarning");
+  const okEl = document.getElementById("editPurchaseSuccess");
+  errEl.classList.remove("show");
+  warnEl.classList.remove("show");
+
+  const purchase = loadedPurchases.find((x) => x.id === editingPurchaseId);
+  if (!purchase) { errEl.textContent = "Could not find this purchase."; errEl.classList.add("show"); return; }
+
+  const newAmount = parseFloat(document.getElementById("ep_amount").value);
+  const newBranch = document.getElementById("ep_branch").value;
+  if (!newAmount || newAmount <= 0) { errEl.textContent = "Enter a valid amount."; errEl.classList.add("show"); return; }
+
+  const oldAmount = purchase.amount;
+  const oldBranch = purchase.branch;
+  const deltaAmount = newAmount - oldAmount;
+  const branchChanged = newBranch !== oldBranch;
+
+  if (!branchChanged && deltaAmount === 0) {
+    editPurchaseOverlay.classList.remove("show");
+    return;
+  }
+
+  try {
+    // A voucher may already have been printed/handed over based on the
+    // original amount — we never auto-issue or revoke one here, just warn
+    // so the admin can check it manually.
+    const oldTier = getTierForPurchase(oldAmount);
+    const newTier = getTierForPurchase(newAmount);
+    const tierChanged = (oldTier?.discount || 0) !== (newTier?.discount || 0);
+
+    // Find the matching flat "sales" copy (only exists for purchases made
+    // after the sales collection was introduced) so it stays in sync.
+    // No query needed — the purchase doc already links directly to its sales copy.
+
+    const monthKey = getMonthKeyFromDateStr(purchase.date);
+    const oldPoints = calculatePoints(oldAmount);
+    const newPoints = calculatePoints(newAmount);
+    const deltaPoints = newPoints - oldPoints;
+
+    const oldBranchCounts = customerData.branchCounts || {};
+    let newBranchCounts = oldBranchCounts;
+    let topBranch = customerData.topBranch;
+    if (branchChanged) {
+      newBranchCounts = { ...oldBranchCounts };
+      newBranchCounts[oldBranch] = Math.max(0, (newBranchCounts[oldBranch] || 0) - 1);
+      newBranchCounts[newBranch] = (newBranchCounts[newBranch] || 0) + 1;
+      topBranch = Object.keys(newBranchCounts).sort((a, b) => newBranchCounts[b] - newBranchCounts[a])[0];
+    }
+
+    const batch = writeBatch(db);
+
+    batch.update(doc(db, "customers", customerId, "purchases", editingPurchaseId), {
+      amount: newAmount, branch: newBranch,
+    });
+
+    batch.update(doc(db, "customers", customerId), {
+      totalPurchases: increment(deltaAmount),
+      [`monthlySpend.${monthKey}`]: increment(deltaAmount),
+      totalPoints: increment(deltaPoints),
+      branchCounts: newBranchCounts,
+      topBranch,
+    });
+
+    if (branchChanged) {
+      batch.set(doc(db, "stats", "branchTotals"), {
+        [oldBranch]: increment(-oldAmount),
+        [newBranch]: increment(newAmount),
+      }, { merge: true });
+    } else if (deltaAmount !== 0) {
+      batch.set(doc(db, "stats", "branchTotals"), {
+        [oldBranch]: increment(deltaAmount),
+      }, { merge: true });
+    }
+
+    if (purchase.salesId) {
+      batch.update(doc(db, "sales", purchase.salesId), { amount: newAmount, branch: newBranch });
+    }
+
+    const activityRef = doc(collection(db, "activity"));
+    batch.set(activityRef, {
+      action: `Purchase corrected for ${customerData.name || "Unnamed"} — ${oldAmount} AED/${oldBranch} → ${newAmount} AED/${newBranch}`,
+      at: serverTimestamp(),
+      branch: newBranch,
+      by: auth.currentUser ? auth.currentUser.email : "unknown",
+    });
+
+    await batch.commit();
+
+    if (tierChanged) {
+      warnEl.innerHTML = oldTier || newTier
+        ? `⚠️ This changed the voucher tier (${oldTier ? oldTier.discount + " AED" : "none"} → ${newTier ? newTier.discount + " AED" : "none"}). ` +
+          `No voucher was auto-issued or removed — please check this customer's vouchers manually if needed.`
+        : "";
+      if (warnEl.innerHTML) warnEl.classList.add("show");
+    }
+
+    okEl.textContent = "Purchase corrected.";
+    okEl.classList.add("show");
+    setTimeout(() => {
+      editPurchaseOverlay.classList.remove("show");
+      okEl.classList.remove("show");
+      loadAll();
+    }, tierChanged ? 2600 : 1200);
+  } catch (err) {
+    errEl.textContent = "Could not save correction: " + (err && err.message ? err.message : String(err));
+    errEl.classList.add("show");
+    console.error(err);
+  }
+});
+
+
 const redeemOverlay = document.getElementById("redeemOverlay");
 
 function openRedeemSheet() {
