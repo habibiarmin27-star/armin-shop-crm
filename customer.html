@@ -65,6 +65,30 @@
   </div>
 </div>
 
+<!-- Edit Purchase sheet (only the staff member who recorded it can correct amount & branch) -->
+<div class="overlay" id="editPurchaseOverlay">
+  <div class="sheet">
+    <h2>Correct Purchase</h2>
+    <div class="muted" style="margin-bottom:10px; font-size:12px;">
+      Only amount and branch can be corrected. This updates points, vouchers-eligibility check,
+      and branch totals to match — it's logged for the record.
+    </div>
+    <div id="editPurchaseError" class="error-msg"></div>
+    <div id="editPurchaseWarning" class="warning-msg"></div>
+    <div id="editPurchaseSuccess" class="success-msg"></div>
+    <form id="editPurchaseForm">
+      <label>Purchase Amount (AED) *</label>
+      <input type="number" id="ep_amount" min="1" step="0.01" required>
+
+      <label>Branch *</label>
+      <select id="ep_branch" required></select>
+
+      <button type="submit" class="btn">Save Correction</button>
+      <button type="button" class="btn secondary" id="cancelEditPurchaseBtn" style="margin-top:10px;">Cancel</button>
+    </form>
+  </div>
+</div>
+
 <!-- Redeem points sheet -->
 <div class="overlay" id="redeemOverlay">
   <div class="sheet">
