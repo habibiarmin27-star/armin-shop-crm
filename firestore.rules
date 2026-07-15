@@ -33,7 +33,7 @@ service cloud.firestore {
     }
 
     match /staff/{staffEmail} {
-      allow read: if isSignedIn() && (staffEmail == email() || isAdmin());
+      allow read: if isActive();
       allow create: if isAdmin() || (isBootstrapAdmin() && staffEmail == email());
       allow update: if isAdmin();
       allow delete: if false;
@@ -45,15 +45,19 @@ service cloud.firestore {
     }
 
     match /{path=**}/purchases/{purchaseId} {
-      allow read: if isAdmin();
+      allow read: if isAdmin() || (isSignedIn() && resource.data.recordedBy == email());
       allow create: if isActive();
-      allow update, delete: if false;
+      allow update: if isSignedIn() && resource.data.recordedBy == email() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['amount', 'branch']);
+      allow delete: if false;
     }
 
     match /sales/{saleId} {
       allow read: if isAdmin();
       allow create: if isActive();
-      allow update, delete: if false;
+      allow update: if isSignedIn() && resource.data.recordedBy == email() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['amount', 'branch']);
+      allow delete: if false;
     }
 
     match /vouchers/{voucherId} {
