@@ -112,15 +112,23 @@ function staffDisplayName(email) {
 }
 
 async function loadAll() {
+  document.getElementById("infoCard").innerHTML = `<div class="loading">Step 1: connecting...</div>`;
+  const timeoutWarning = setTimeout(() => {
+    document.getElementById("infoCard").innerHTML =
+      `<div class="empty-state">Still waiting on Firebase after 8 seconds — likely a network or permissions issue. Try reloading, or check Firestore Rules were published.</div>`;
+  }, 8000);
   try {
     await loadCustomer();
+    document.getElementById("infoCard").dataset.step = "customer-loaded";
     if (userRole === "admin") {
       await loadPurchases();
     } else {
       await loadMyPurchases();
     }
     await loadVouchers();
+    clearTimeout(timeoutWarning);
   } catch (err) {
+    clearTimeout(timeoutWarning);
     document.getElementById("infoCard").innerHTML =
       `<div class="empty-state">Failed to load: ${escapeHtml(err && err.message ? err.message : String(err))}</div>`;
     console.error(err);
