@@ -116,6 +116,8 @@ async function loadAll() {
     await loadCustomer();
     if (userRole === "admin") {
       await loadPurchases();
+    } else {
+      await loadMyPurchases();
     }
     await loadVouchers();
   } catch (err) {
@@ -190,7 +192,7 @@ function renderInfo() {
         📍 ${escapeHtml(customerData.address || "—")}<br>
         🗺️ ${escapeHtml(regionLabel(customerData))}
       </div>
-      <div class="locked-info" style="margin-top:12px;">🔒 Sales total & purchase history — Admin only</div>
+      <div class="locked-info" style="margin-top:12px;">🔒 Lifetime total — Admin only</div>
       <div style="display:flex; gap:8px; margin-top:14px;">
         <button class="btn secondary" id="openEditBtn" style="flex:1;">✏️ Edit Info</button>
         <button class="btn secondary" id="openRedeemBtn" style="flex:1;" ${pts < 10 ? "disabled" : ""}>🎁 Redeem (${bal} AED)</button>
@@ -199,19 +201,7 @@ function renderInfo() {
     document.getElementById("openEditBtn").addEventListener("click", openEditSheet);
     const redeemBtn = document.getElementById("openRedeemBtn");
     if (redeemBtn) redeemBtn.addEventListener("click", openRedeemSheet);
-
-    // Hide only the purchase-history section for staff; vouchers stay visible
-    hideAdminSections();
   }
-}
-
-function hideAdminSections() {
-  document.querySelectorAll(".section-title").forEach(el => {
-    const t = el.textContent.trim();
-    if (t === "Purchase History") el.style.display = "none";
-  });
-  const pl = document.getElementById("purchaseList");
-  if (pl) pl.style.display = "none";
 }
 
 async function loadPurchases() {
@@ -242,6 +232,37 @@ async function loadPurchases() {
   const topBranch = Object.keys(counts).sort((a, b) => counts[b] - counts[a])[0];
   const bl = document.getElementById("branchInfoLine");
   if (bl) bl.textContent = topBranch ? `📍 Most-visited branch: ${topBranch}` : "";
+}
+
+// Staff (non-admin) don't get the full purchase history — only the entries
+// they personally recorded, so they can fix their own mistakes without
+// seeing what other staff or branches sold this customer.
+async function loadMyPurchases() {
+  const listEl = document.getElementById("purchaseList");
+  const snap = await getDocs(query(
+    collection(db, "customers", customerId, "purchases"),
+    where("recordedBy", "==", currentUserEmail)
+  ));
+
+  if (snap.empty) {
+    listEl.innerHTML = `<div class="empty-state">You haven't recorded any purchases for this customer</div>`;
+    loadedPurchases = [];
+    return;
+  }
+
+  const purchases = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+    .sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+  loadedPurchases = purchases;
+
+  listEl.innerHTML =
+    `<div class="muted" style="margin-bottom:8px; font-size:11.5px;">Showing only purchases you recorded for this customer</div>` +
+    purchases.map((p) => {
+      const branchLabel = p.branch ? ` · ${escapeHtml(p.branch)}` : "";
+      return `<div class="purchase-row">
+        <span class="date">${p.date || "—"}${branchLabel}</span>
+        <span class="amt">${p.amount} AED</span>
+      </div>`;
+    }).join("");
 }
 
 async function loadVouchers() {
