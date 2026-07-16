@@ -221,11 +221,21 @@ async function loadPurchases() {
   loadedPurchases = purchases;
   listEl.innerHTML = purchases.map((p) => {
     const branchLabel = p.branch ? ` · ${escapeHtml(p.branch)}` : "";
+    const editBtn = p.recordedBy && p.recordedBy === currentUserEmail
+      ? `<button type="button" class="edit-purchase-btn" data-id="${p.id}">✏️</button>`
+      : "";
     return `<div class="purchase-row">
       <span class="date">${p.date || "—"}${branchLabel}</span>
-      <span class="amt">${p.amount} AED</span>
+      <span style="display:flex; align-items:center; gap:8px;">
+        <span class="amt">${p.amount} AED</span>
+        ${editBtn}
+      </span>
     </div>`;
   }).join("");
+
+  document.querySelectorAll(".edit-purchase-btn").forEach((btn) => {
+    btn.addEventListener("click", () => openEditPurchaseSheet(btn.dataset.id));
+  });
 
   const counts = {};
   purchases.forEach((p) => { if (p.branch) counts[p.branch] = (counts[p.branch] || 0) + 1; });
@@ -260,9 +270,16 @@ async function loadMyPurchases() {
       const branchLabel = p.branch ? ` · ${escapeHtml(p.branch)}` : "";
       return `<div class="purchase-row">
         <span class="date">${p.date || "—"}${branchLabel}</span>
-        <span class="amt">${p.amount} AED</span>
+        <span style="display:flex; align-items:center; gap:8px;">
+          <span class="amt">${p.amount} AED</span>
+          <button type="button" class="edit-purchase-btn" data-id="${p.id}">✏️</button>
+        </span>
       </div>`;
     }).join("");
+
+  document.querySelectorAll(".edit-purchase-btn").forEach((btn) => {
+    btn.addEventListener("click", () => openEditPurchaseSheet(btn.dataset.id));
+  });
 }
 
 async function loadVouchers() {
@@ -468,6 +485,130 @@ document.getElementById("purchaseForm").addEventListener("submit", async (e) => 
     document.getElementById("purchaseError").textContent =
       "Failed to record the purchase: " + (err && err.message ? err.message : String(err));
     document.getElementById("purchaseError").classList.add("show");
+    console.error(err);
+  }
+});
+
+
+// ---- Correct Purchase (only the staff member who recorded it can edit amount & branch) ----
+const editPurchaseOverlay = document.getElementById("editPurchaseOverlay");
+let editingPurchaseId = null;
+
+document.getElementById("ep_branch").innerHTML =
+  BRANCHES.map((b) => `<option value="${b}">${b}</option>`).join("");
+
+function openEditPurchaseSheet(purchaseId) {
+  const p = loadedPurchases.find((x) => x.id === purchaseId);
+  if (!p) return;
+  editingPurchaseId = purchaseId;
+  document.getElementById("ep_amount").value = p.amount;
+  document.getElementById("ep_branch").value = p.branch || BRANCHES[0];
+  document.getElementById("editPurchaseError").classList.remove("show");
+  document.getElementById("editPurchaseWarning").classList.remove("show");
+  document.getElementById("editPurchaseSuccess").classList.remove("show");
+  editPurchaseOverlay.classList.add("show");
+}
+document.getElementById("cancelEditPurchaseBtn").addEventListener("click", () => editPurchaseOverlay.classList.remove("show"));
+
+document.getElementById("editPurchaseForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const errEl = document.getElementById("editPurchaseError");
+  const warnEl = document.getElementById("editPurchaseWarning");
+  const okEl = document.getElementById("editPurchaseSuccess");
+  errEl.classList.remove("show");
+  warnEl.classList.remove("show");
+
+  const purchase = loadedPurchases.find((x) => x.id === editingPurchaseId);
+  if (!purchase) { errEl.textContent = "Could not find this purchase."; errEl.classList.add("show"); return; }
+
+  const newAmount = parseFloat(document.getElementById("ep_amount").value);
+  const newBranch = document.getElementById("ep_branch").value;
+  if (!newAmount || newAmount <= 0) { errEl.textContent = "Enter a valid amount."; errEl.classList.add("show"); return; }
+
+  const oldAmount = purchase.amount;
+  const oldBranch = purchase.branch;
+  const deltaAmount = newAmount - oldAmount;
+  const branchChanged = newBranch !== oldBranch;
+
+  if (!branchChanged && deltaAmount === 0) {
+    editPurchaseOverlay.classList.remove("show");
+    return;
+  }
+
+  try {
+    const oldTier = getTierForPurchase(oldAmount);
+    const newTier = getTierForPurchase(newAmount);
+    const tierChanged = (oldTier ? oldTier.discount : 0) !== (newTier ? newTier.discount : 0);
+
+    const monthKey = getMonthKeyFromDateStr(purchase.date);
+    const oldPoints = calculatePoints(oldAmount);
+    const newPoints = calculatePoints(newAmount);
+    const deltaPoints = newPoints - oldPoints;
+
+    const oldBranchCounts = customerData.branchCounts || {};
+    let newBranchCounts = oldBranchCounts;
+    let topBranch = customerData.topBranch;
+    if (branchChanged) {
+      newBranchCounts = { ...oldBranchCounts };
+      newBranchCounts[oldBranch] = Math.max(0, (newBranchCounts[oldBranch] || 0) - 1);
+      newBranchCounts[newBranch] = (newBranchCounts[newBranch] || 0) + 1;
+      topBranch = Object.keys(newBranchCounts).sort((a, b) => newBranchCounts[b] - newBranchCounts[a])[0];
+    }
+
+    const batch = writeBatch(db);
+
+    batch.update(doc(db, "customers", customerId, "purchases", editingPurchaseId), {
+      amount: newAmount, branch: newBranch,
+    });
+
+    batch.update(doc(db, "customers", customerId), {
+      totalPurchases: increment(deltaAmount),
+      [`monthlySpend.${monthKey}`]: increment(deltaAmount),
+      totalPoints: increment(deltaPoints),
+      branchCounts: newBranchCounts,
+      topBranch,
+    });
+
+    if (branchChanged) {
+      batch.set(doc(db, "stats", "branchTotals"), {
+        [oldBranch]: increment(-oldAmount),
+        [newBranch]: increment(newAmount),
+      }, { merge: true });
+    } else if (deltaAmount !== 0) {
+      batch.set(doc(db, "stats", "branchTotals"), {
+        [oldBranch]: increment(deltaAmount),
+      }, { merge: true });
+    }
+
+    if (purchase.salesId) {
+      batch.update(doc(db, "sales", purchase.salesId), { amount: newAmount, branch: newBranch });
+    }
+
+    const activityRef = doc(collection(db, "activity"));
+    batch.set(activityRef, {
+      action: `Purchase corrected for ${customerData.name || "Unnamed"} — ${oldAmount} AED/${oldBranch} → ${newAmount} AED/${newBranch}`,
+      at: serverTimestamp(),
+      branch: newBranch,
+      by: auth.currentUser ? auth.currentUser.email : "unknown",
+    });
+
+    await batch.commit();
+
+    if (tierChanged) {
+      warnEl.textContent = `⚠️ This changed the voucher tier (${oldTier ? oldTier.discount + " AED" : "none"} → ${newTier ? newTier.discount + " AED" : "none"}). No voucher was auto-issued or removed — please check this customer's vouchers manually if needed.`;
+      warnEl.classList.add("show");
+    }
+
+    okEl.textContent = "Purchase corrected.";
+    okEl.classList.add("show");
+    setTimeout(() => {
+      editPurchaseOverlay.classList.remove("show");
+      okEl.classList.remove("show");
+      loadAll();
+    }, tierChanged ? 2600 : 1200);
+  } catch (err) {
+    errEl.textContent = "Could not save correction: " + (err && err.message ? err.message : String(err));
+    errEl.classList.add("show");
     console.error(err);
   }
 });
