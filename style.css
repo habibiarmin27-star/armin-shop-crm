@@ -337,6 +337,18 @@ button{
 .purchase-row:last-child, .voucher-row:last-child{border-bottom:none;}
 .purchase-row .amt{font-weight:800; color:var(--text);}
 .purchase-row .date, .voucher-row .date{color:var(--text-dim); font-size:11.5px;}
+.edit-purchase-btn{
+  background:var(--surface-2); border:1px solid var(--border); border-radius:8px;
+  width:28px; height:28px; font-size:13px; cursor:pointer; line-height:1;
+  display:flex; align-items:center; justify-content:center; padding:0;
+}
+.edit-purchase-btn:active{background:var(--border);}
+.delete-purchase-btn{
+  background:var(--surface-2); border:1px solid var(--border); border-radius:8px;
+  width:28px; height:28px; font-size:13px; cursor:pointer; line-height:1;
+  display:flex; align-items:center; justify-content:center; padding:0;
+}
+.delete-purchase-btn:active{background:#fde2e2;}
 
 .badge{
   font-size:10.5px;
