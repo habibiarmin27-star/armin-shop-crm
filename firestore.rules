@@ -47,17 +47,17 @@ service cloud.firestore {
     match /{path=**}/purchases/{purchaseId} {
       allow read: if isAdmin() || (isSignedIn() && resource.data.recordedBy == email());
       allow create: if isActive();
-      allow update: if isSignedIn() && resource.data.recordedBy == email() &&
+      allow update: if isSignedIn() && (isAdmin() || resource.data.recordedBy == email()) &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['amount', 'branch']);
-      allow delete: if false;
+      allow delete: if isAdmin() || (isSignedIn() && resource.data.recordedBy == email());
     }
 
     match /sales/{saleId} {
       allow read: if isAdmin();
       allow create: if isActive();
-      allow update: if isSignedIn() && resource.data.recordedBy == email() &&
+      allow update: if isSignedIn() && (isAdmin() || resource.data.recordedBy == email()) &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['amount', 'branch']);
-      allow delete: if false;
+      allow delete: if isAdmin() || (isSignedIn() && resource.data.recordedBy == email());
     }
 
     match /vouchers/{voucherId} {
