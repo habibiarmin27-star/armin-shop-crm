@@ -556,10 +556,25 @@ document.getElementById("editPurchaseForm").addEventListener("submit", async (e)
     }
 
     const batch = writeBatch(db);
+    const purchaseUpdate = { amount: newAmount, branch: newBranch };
 
-    batch.update(doc(db, "customers", customerId, "purchases", editingPurchaseId), {
-      amount: newAmount, branch: newBranch,
-    });
+    if (purchase.salesId) {
+      batch.update(doc(db, "sales", purchase.salesId), { amount: newAmount, branch: newBranch });
+    } else {
+      // This purchase predates the sales-copy link — create one now (with
+      // the corrected values) so it starts showing up correctly on the
+      // Staff Profile page from this point on.
+      const newSalesRef = doc(collection(db, "sales"));
+      batch.set(newSalesRef, {
+        customerId, customerName: customerData.name || "",
+        amount: newAmount, date: purchase.date, branch: newBranch,
+        recordedBy: purchase.recordedBy, createdAt: serverTimestamp(),
+        purchaseId: editingPurchaseId,
+      });
+      purchaseUpdate.salesId = newSalesRef.id;
+    }
+
+    batch.update(doc(db, "customers", customerId, "purchases", editingPurchaseId), purchaseUpdate);
 
     batch.update(doc(db, "customers", customerId), {
       totalPurchases: increment(deltaAmount),
@@ -578,10 +593,6 @@ document.getElementById("editPurchaseForm").addEventListener("submit", async (e)
       batch.set(doc(db, "stats", "branchTotals"), {
         [oldBranch]: increment(deltaAmount),
       }, { merge: true });
-    }
-
-    if (purchase.salesId) {
-      batch.update(doc(db, "sales", purchase.salesId), { amount: newAmount, branch: newBranch });
     }
 
     const activityRef = doc(collection(db, "activity"));
