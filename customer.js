@@ -223,20 +223,21 @@ async function loadPurchases() {
   loadedPurchases = purchases;
   listEl.innerHTML = purchases.map((p) => {
     const branchLabel = p.branch ? ` · ${escapeHtml(p.branch)}` : "";
-    const editBtn = p.recordedBy && p.recordedBy === currentUserEmail
-      ? `<button type="button" class="edit-purchase-btn" data-id="${p.id}">✏️</button>`
-      : "";
     return `<div class="purchase-row">
       <span class="date">${p.date || "—"}${branchLabel}</span>
       <span style="display:flex; align-items:center; gap:8px;">
         <span class="amt">${p.amount} AED</span>
-        ${editBtn}
+        <button type="button" class="edit-purchase-btn" data-id="${p.id}">✏️</button>
+        <button type="button" class="delete-purchase-btn" data-id="${p.id}">🗑️</button>
       </span>
     </div>`;
   }).join("");
 
   document.querySelectorAll(".edit-purchase-btn").forEach((btn) => {
     btn.addEventListener("click", () => openEditPurchaseSheet(btn.dataset.id));
+  });
+  document.querySelectorAll(".delete-purchase-btn").forEach((btn) => {
+    btn.addEventListener("click", () => deletePurchase(btn.dataset.id));
   });
 
   const counts = {};
@@ -275,12 +276,16 @@ async function loadMyPurchases() {
         <span style="display:flex; align-items:center; gap:8px;">
           <span class="amt">${p.amount} AED</span>
           <button type="button" class="edit-purchase-btn" data-id="${p.id}">✏️</button>
+          <button type="button" class="delete-purchase-btn" data-id="${p.id}">🗑️</button>
         </span>
       </div>`;
     }).join("");
 
   document.querySelectorAll(".edit-purchase-btn").forEach((btn) => {
     btn.addEventListener("click", () => openEditPurchaseSheet(btn.dataset.id));
+  });
+  document.querySelectorAll(".delete-purchase-btn").forEach((btn) => {
+    btn.addEventListener("click", () => deletePurchase(btn.dataset.id));
   });
 }
 
@@ -652,6 +657,83 @@ document.getElementById("editPurchaseForm").addEventListener("submit", async (e)
     submitBtn.disabled = false;
   }
 });
+
+
+// Fully removes a purchase (not just corrects it) — reverses everything it
+// contributed (points, lifetime total, monthly spend, branch counts, and
+// the site-wide branch totals) then deletes the record. Available to admin
+// (any purchase) or the staff member who originally recorded it.
+async function deletePurchase(purchaseId) {
+  const purchase = loadedPurchases.find((x) => x.id === purchaseId);
+  if (!purchase) return;
+
+  const confirmed = window.confirm(
+    `Delete this ${purchase.amount} AED purchase (${purchase.date || ""}, ${purchase.branch || ""})? This cannot be undone.`
+  );
+  if (!confirmed) return;
+
+  const btn = document.querySelector(`.delete-purchase-btn[data-id="${purchaseId}"]`);
+  if (btn) {
+    if (btn.disabled) return; // already processing — ignore a fast double-tap
+    btn.disabled = true;
+    btn.textContent = "...";
+  }
+
+  try {
+    const oldTier = getTierForPurchase(purchase.amount);
+    const monthKey = getMonthKeyFromDateStr(purchase.date);
+    const points = calculatePoints(purchase.amount);
+
+    const oldBranchCounts = customerData.branchCounts || {};
+    const newBranchCounts = { ...oldBranchCounts };
+    if (purchase.branch) {
+      newBranchCounts[purchase.branch] = Math.max(0, (newBranchCounts[purchase.branch] || 0) - 1);
+    }
+    const topBranch = Object.keys(newBranchCounts).sort((a, b) => newBranchCounts[b] - newBranchCounts[a])[0] || "";
+
+    const batch = writeBatch(db);
+
+    batch.delete(doc(db, "customers", customerId, "purchases", purchaseId));
+
+    batch.update(doc(db, "customers", customerId), {
+      totalPurchases: increment(-purchase.amount),
+      [`monthlySpend.${monthKey}`]: increment(-purchase.amount),
+      totalPoints: increment(-points),
+      branchCounts: newBranchCounts,
+      topBranch,
+    });
+
+    if (purchase.branch) {
+      batch.set(doc(db, "stats", "branchTotals"), {
+        [purchase.branch]: increment(-purchase.amount),
+      }, { merge: true });
+    }
+
+    if (purchase.salesId) {
+      batch.delete(doc(db, "sales", purchase.salesId));
+    }
+
+    const activityRef = doc(collection(db, "activity"));
+    batch.set(activityRef, {
+      action: `Purchase deleted for ${customerData.name || "Unnamed"} — ${purchase.amount} AED/${purchase.branch || "—"}`,
+      at: serverTimestamp(),
+      branch: purchase.branch || "",
+      by: auth.currentUser ? auth.currentUser.email : "unknown",
+    });
+
+    await batch.commit();
+
+    if (oldTier) {
+      alert(`Deleted. Note: this purchase had triggered a ${oldTier.discount} AED voucher tier — no voucher was auto-removed, please check this customer's vouchers manually if needed.`);
+    }
+
+    loadAll();
+  } catch (err) {
+    alert("Failed to delete the purchase. Please try again.");
+    console.error(err);
+    if (btn) { btn.disabled = false; btn.textContent = "🗑️"; }
+  }
+}
 
 
 const redeemOverlay = document.getElementById("redeemOverlay");
