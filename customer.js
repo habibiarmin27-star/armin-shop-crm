@@ -170,12 +170,14 @@ function renderInfo() {
         <button class="btn secondary" id="openEditBtn" style="flex:1;">✏️ Edit</button>
         <button class="btn secondary" id="openRedeemBtn" style="flex:1;" ${pts < 10 ? "disabled" : ""}>🎁 Redeem (${bal} AED)</button>
       </div>
+      <button class="btn secondary" id="recalcTotalsBtn" style="margin-top:10px;">🔄 Recalculate Totals</button>
       <button class="btn danger" id="deleteCustBtn" style="margin-top:10px;">🗑 Delete Customer</button>
     `;
     const redeemBtn = document.getElementById("openRedeemBtn");
     if (redeemBtn) redeemBtn.addEventListener("click", openRedeemSheet);
     document.getElementById("openEditBtn").addEventListener("click", openEditSheet);
     document.getElementById("deleteCustBtn").addEventListener("click", deleteCustomer);
+    document.getElementById("recalcTotalsBtn").addEventListener("click", recalculateCustomerTotals);
 
   } else {
     // Staff — limited view: points/balance + contact, edit basic info + redeem + vouchers,
@@ -379,7 +381,11 @@ async function markVoucherUsed(voucherId, btn) {
 
 // ---- Add purchase ----
 const purchaseOverlay = document.getElementById("purchaseOverlay");
-document.getElementById("openPurchaseBtn").addEventListener("click", () => { applyDefaultSalesperson(); purchaseOverlay.classList.add("show"); });
+document.getElementById("openPurchaseBtn").addEventListener("click", () => {
+  applyDefaultSalesperson();
+  document.getElementById("purchaseForm").querySelector('button[type="submit"]').disabled = false;
+  purchaseOverlay.classList.add("show");
+});
 document.getElementById("cancelPurchaseBtn").addEventListener("click", () => purchaseOverlay.classList.remove("show"));
 
 document.getElementById("purchaseForm").addEventListener("submit", async (e) => {
@@ -389,14 +395,19 @@ document.getElementById("purchaseForm").addEventListener("submit", async (e) => 
   errorBox.classList.remove("show");
   successBox.classList.remove("show");
 
+  const submitBtn = e.target.querySelector('button[type="submit"]');
+  if (submitBtn.disabled) return; // already processing this submission — ignore a fast double-tap
+  submitBtn.disabled = true;
+
   const amount = parseFloat(document.getElementById("p_amount").value);
   const branch = document.getElementById("p_branch").value;
   const salesperson = document.getElementById("p_salesperson").value;
   const date = document.getElementById("p_date").value || new Date().toISOString().slice(0, 10);
-  if (!amount || amount <= 0) return;
+  if (!amount || amount <= 0) { submitBtn.disabled = false; return; }
   if (!salesperson) {
     errorBox.textContent = "Please select which salesperson made this sale.";
     errorBox.classList.add("show");
+    submitBtn.disabled = false;
     return;
   }
 
@@ -480,12 +491,14 @@ document.getElementById("purchaseForm").addEventListener("submit", async (e) => 
     );
 
     setTimeout(() => { purchaseOverlay.classList.remove("show"); successBox.classList.remove("show"); loadAll(); }, 1400);
+    submitBtn.disabled = false;
 
   } catch (err) {
     document.getElementById("purchaseError").textContent =
       "Failed to record the purchase: " + (err && err.message ? err.message : String(err));
     document.getElementById("purchaseError").classList.add("show");
     console.error(err);
+    submitBtn.disabled = false;
   }
 });
 
@@ -506,6 +519,7 @@ function openEditPurchaseSheet(purchaseId) {
   document.getElementById("editPurchaseError").classList.remove("show");
   document.getElementById("editPurchaseWarning").classList.remove("show");
   document.getElementById("editPurchaseSuccess").classList.remove("show");
+  document.getElementById("editPurchaseForm").querySelector('button[type="submit"]').disabled = false;
   editPurchaseOverlay.classList.add("show");
 }
 document.getElementById("cancelEditPurchaseBtn").addEventListener("click", () => editPurchaseOverlay.classList.remove("show"));
@@ -518,12 +532,24 @@ document.getElementById("editPurchaseForm").addEventListener("submit", async (e)
   errEl.classList.remove("show");
   warnEl.classList.remove("show");
 
+  const submitBtn = e.target.querySelector('button[type="submit"]');
+  if (submitBtn.disabled) return; // already processing — ignore a fast double-tap
+  submitBtn.disabled = true;
+
   const purchase = loadedPurchases.find((x) => x.id === editingPurchaseId);
-  if (!purchase) { errEl.textContent = "Could not find this purchase."; errEl.classList.add("show"); return; }
+  if (!purchase) {
+    errEl.textContent = "Could not find this purchase."; errEl.classList.add("show");
+    submitBtn.disabled = false;
+    return;
+  }
 
   const newAmount = parseFloat(document.getElementById("ep_amount").value);
   const newBranch = document.getElementById("ep_branch").value;
-  if (!newAmount || newAmount <= 0) { errEl.textContent = "Enter a valid amount."; errEl.classList.add("show"); return; }
+  if (!newAmount || newAmount <= 0) {
+    errEl.textContent = "Enter a valid amount."; errEl.classList.add("show");
+    submitBtn.disabled = false;
+    return;
+  }
 
   const oldAmount = purchase.amount;
   const oldBranch = purchase.branch;
@@ -532,6 +558,7 @@ document.getElementById("editPurchaseForm").addEventListener("submit", async (e)
 
   if (!branchChanged && deltaAmount === 0) {
     editPurchaseOverlay.classList.remove("show");
+    submitBtn.disabled = false;
     return;
   }
 
@@ -617,10 +644,12 @@ document.getElementById("editPurchaseForm").addEventListener("submit", async (e)
       okEl.classList.remove("show");
       loadAll();
     }, tierChanged ? 2600 : 1200);
+    submitBtn.disabled = false;
   } catch (err) {
     errEl.textContent = "Could not save correction: " + (err && err.message ? err.message : String(err));
     errEl.classList.add("show");
     console.error(err);
+    submitBtn.disabled = false;
   }
 });
 
@@ -785,6 +814,71 @@ async function deleteCustomer() {
   } catch (err) {
     alert("Failed to delete customer. Please try again.");
     console.error(err);
+  }
+}
+
+// Admin-only repair tool: re-derives totalPurchases, totalPoints,
+// monthlySpend, branchCounts, topBranch and activeVoucherCount straight
+// from the customer's actual purchase/voucher records, fixing any drift
+// (e.g. from a double-tapped submit) instead of trusting the running totals.
+async function recalculateCustomerTotals() {
+  if (userRole !== "admin") return;
+  const confirmed = window.confirm(
+    "Recalculate this customer's totals from their actual purchase records? This overwrites the current numbers with freshly-computed ones."
+  );
+  if (!confirmed) return;
+
+  const btn = document.getElementById("recalcTotalsBtn");
+  if (btn) { btn.disabled = true; btn.textContent = "Recalculating..."; }
+
+  try {
+    const [purchasesSnap, vouchersSnap] = await Promise.all([
+      getDocs(collection(db, "customers", customerId, "purchases")),
+      getDocs(query(collection(db, "vouchers"), where("customerId", "==", customerId))),
+    ]);
+
+    let totalPurchases = 0, totalPoints = 0;
+    const monthlySpend = {};
+    const branchCounts = {};
+    let lastPurchaseDate = "";
+
+    purchasesSnap.docs.forEach((d) => {
+      const p = d.data();
+      const amount = p.amount || 0;
+      totalPurchases += amount;
+      totalPoints += calculatePoints(amount);
+      if (p.date) {
+        const mk = getMonthKeyFromDateStr(p.date);
+        monthlySpend[mk] = (monthlySpend[mk] || 0) + amount;
+        if (p.date > lastPurchaseDate) lastPurchaseDate = p.date;
+      }
+      if (p.branch) branchCounts[p.branch] = (branchCounts[p.branch] || 0) + 1;
+    });
+
+    const topBranch = Object.keys(branchCounts).sort((a, b) => branchCounts[b] - branchCounts[a])[0] || "";
+
+    const now = Date.now();
+    let activeVoucherCount = 0;
+    vouchersSnap.docs.forEach((d) => {
+      const v = d.data();
+      const expiresMs = v.expiresAt && v.expiresAt.seconds ? v.expiresAt.seconds * 1000 : 0;
+      if (v.status === "active" && !(expiresMs && expiresMs < now)) activeVoucherCount++;
+    });
+
+    await updateDoc(doc(db, "customers", customerId), {
+      totalPurchases, totalPoints, monthlySpend, branchCounts, topBranch,
+      lastPurchaseDate: lastPurchaseDate || null,
+      activeVoucherCount,
+    });
+
+    logActivity(`Recalculated totals for ${customerData.name || "Unnamed"} (repair)`, "");
+    alert("Totals recalculated successfully.");
+    loadAll();
+  } catch (err) {
+    alert("Failed to recalculate totals. Please try again.");
+    console.error(err);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = "🔄 Recalculate Totals"; }
   }
 }
 
